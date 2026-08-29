@@ -48,10 +48,10 @@
         </svg>
       </div>
       <h1>月蚀棋</h1>
-      <p class="subtitle">Moon Chess · 三消易，四难留</p>
+      <p class="subtitle">Moon Chess · 满五者，蚀最古</p>
       <p class="rules-hint">
-        类似井字棋，先连成三子者胜。但每方棋盘上最多只能有 <b>3 颗棋子</b>——
-        当你再下时，最早下的那颗会 <b>消逝</b>。
+        类似井字棋，先连成三子者胜。但棋盘上总共最多同时有 <b>5 颗棋子</b>——
+        当第 6 颗落下时，全场最早落子的那一颗会 <b>消逝</b>。
       </p>
     </div>
 
@@ -68,7 +68,7 @@
     </div>
 
     <footer class="footer">
-      <span>⚡ 三消者胜 · 满三者蚀最早</span>
+      <span>⚡ 三消者胜 · 满五者蚀最古</span>
     </footer>
   </section>
 
@@ -150,17 +150,35 @@
   <div class="modal-mask" id="side-select">
     <div class="modal">
       <h2>选择先后手</h2>
-      <p class="hint">先手：白子，开局先行；后手：黑子，AI 先行。双方颜色明显不同。</p>
+      <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
       <div class="diff-list">
         <button class="diff-btn" id="side-white">
-          <span class="diff-emoji">⚪</span>
-          <span class="diff-name">执白（先手）</span>
-          <span class="diff-desc">你用白子，开局第一步由你下</span>
+          <span class="diff-emoji" aria-hidden="true">
+            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
+              <radialGradient id="s-w" cx="48%" cy="36%" r="68%">
+                <stop offset="0%" stop-color="#ffffff"/><stop offset="35%" stop-color="#fff0fa"/>
+                <stop offset="60%" stop-color="#ffc3de"/><stop offset="85%" stop-color="#ff8fc7"/><stop offset="100%" stop-color="#c97bff"/>
+              </radialGradient></defs>
+              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-w)" stroke="#ffd8ec" stroke-opacity="0.75" stroke-width="1.4"/>
+              <polygon points="50,10 68,30 50,44 32,30" fill="#ffffff" fill-opacity="0.55"/>
+              <circle cx="46" cy="40" r="3.4" fill="#ffffff" fill-opacity="0.95"/></svg>
+          </span>
+          <span class="diff-name">执粉白（先手）</span>
+          <span class="diff-desc">你用粉白棋，开局第一步由你下</span>
         </button>
         <button class="diff-btn" id="side-black">
-          <span class="diff-emoji">⚫</span>
-          <span class="diff-name">执黑（后手）</span>
-          <span class="diff-desc">你用黑子，开局由 AI 先走白棋</span>
+          <span class="diff-emoji" aria-hidden="true">
+            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
+              <radialGradient id="s-b" cx="50%" cy="34%" r="70%">
+                <stop offset="0%" stop-color="#e9efff"/><stop offset="30%" stop-color="#8fb3ff"/>
+                <stop offset="60%" stop-color="#7a5bff"/><stop offset="85%" stop-color="#4a2bc7"/><stop offset="100%" stop-color="#241070"/>
+              </radialGradient></defs>
+              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-b)" stroke="#c0b8ff" stroke-opacity="0.72" stroke-width="1.4"/>
+              <polygon points="50,10 68,30 50,44 32,30" fill="#d7e6ff" fill-opacity="0.4"/>
+              <circle cx="46" cy="40" r="3" fill="#e9f2ff" fill-opacity="0.9"/></svg>
+          </span>
+          <span class="diff-name">执紫蓝（后手）</span>
+          <span class="diff-desc">你用紫蓝棋，开局由 AI 先走粉白棋</span>
         </button>
       </div>
       <div class="modal-actions" style="justify-content:center">

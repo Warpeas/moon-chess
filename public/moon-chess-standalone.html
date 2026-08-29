@@ -298,6 +298,45 @@ body::after {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 16px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+}
+.game-header .turn-indicator {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.game-header .game-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.game-header .game-actions .btn {
+  padding: 10px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 嵌入 turn-indicator 内的迷你棋子图标 */
+.mini-gem {
+  width: 20px; height: 20px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.turn-indicator.ended {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(157,78,221,0.35), rgba(76,201,240,0.3));
+  border-color: rgba(199,125,255,0.4);
+  text-shadow: 0 0 10px rgba(255, 220, 255, 0.7);
+  font-weight: 700;
 }
 
 .turn-indicator {
@@ -553,11 +592,11 @@ body::after {
   box-shadow:
     0 0 14px rgba(255, 70, 90, 0.5),
     inset 0 0 10px rgba(255, 70, 90, 0.28);
-  animation: candidatePulse 0.9s ease-in-out infinite;
+  animation: candidatePulse 1.6s ease-in-out infinite;
 }
 @keyframes candidatePulse {
-  0%,100% { transform: scale(1.02); opacity: 0.9; }
-  50%     { transform: scale(1.12); opacity: 1;   }
+  0%,100% { transform: scale(1.02); opacity: 0.88; }
+  50%     { transform: scale(1.14); opacity: 1;    }
 }
 
 /* 落子动效 */
@@ -570,16 +609,16 @@ body::after {
   100% { transform: scale(1) translateY(0); }
 }
 
-/* 消失预告闪烁（棋子自身的动画；结合单元格.marked-to-remove 让用户一眼看见） */
+/* 消失预告闪烁（棋子自身的动画；用户要求速度调慢 — 2.2s 周期） */
 .piece.fading {
-  animation: fadeBlink 1.2s ease-in-out infinite;
-  filter: drop-shadow(0 0 14px rgba(255, 80, 130, 0.75));
+  animation: fadeBlink 2.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(255, 80, 130, 0.8));
 }
 @keyframes fadeBlink {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  30% { opacity: 0.35; transform: scale(0.85); }
-  60% { opacity: 1; transform: scale(1); }
-  75% { opacity: 0.6; }
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  28%      { opacity: 0.32; transform: scale(0.85); }
+  52%      { opacity: 1;    transform: scale(1.02); }
+  76%      { opacity: 0.55; transform: scale(0.96); }
 }
 
 /* ============ 重开投票条 ============ */
@@ -787,10 +826,10 @@ body::after {
         </svg>
       </div>
       <h1>月蚀棋</h1>
-      <p class="subtitle">Moon Chess · 三消易，四难留</p>
+      <p class="subtitle">Moon Chess · 满五者，蚀最古</p>
       <p class="rules-hint">
-        类似井字棋，先连成三子者胜。但每方棋盘上最多只能有 <b>3 颗棋子</b>——
-        当你再下时，最早下的那颗会 <b>消逝</b>。
+        类似井字棋，先连成三子者胜。但棋盘上总共最多同时有 <b>5 颗棋子</b>——
+        当第 6 颗落下时，全场最早落子的那一颗会 <b>消逝</b>。
       </p>
     </div>
 
@@ -807,7 +846,7 @@ body::after {
     </div>
 
     <footer class="footer">
-      <span>⚡ 三消者胜 · 满三者蚀最早</span>
+      <span>⚡ 三消者胜 · 满五者蚀最古</span>
     </footer>
   </section>
 
@@ -889,17 +928,35 @@ body::after {
   <div class="modal-mask" id="side-select">
     <div class="modal">
       <h2>选择先后手</h2>
-      <p class="hint">先手：白子，开局先行；后手：黑子，AI 先行。双方颜色明显不同。</p>
+      <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
       <div class="diff-list">
         <button class="diff-btn" id="side-white">
-          <span class="diff-emoji">⚪</span>
-          <span class="diff-name">执白（先手）</span>
-          <span class="diff-desc">你用白子，开局第一步由你下</span>
+          <span class="diff-emoji" aria-hidden="true">
+            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
+              <radialGradient id="s-w" cx="48%" cy="36%" r="68%">
+                <stop offset="0%" stop-color="#ffffff"/><stop offset="35%" stop-color="#fff0fa"/>
+                <stop offset="60%" stop-color="#ffc3de"/><stop offset="85%" stop-color="#ff8fc7"/><stop offset="100%" stop-color="#c97bff"/>
+              </radialGradient></defs>
+              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-w)" stroke="#ffd8ec" stroke-opacity="0.75" stroke-width="1.4"/>
+              <polygon points="50,10 68,30 50,44 32,30" fill="#ffffff" fill-opacity="0.55"/>
+              <circle cx="46" cy="40" r="3.4" fill="#ffffff" fill-opacity="0.95"/></svg>
+          </span>
+          <span class="diff-name">执粉白（先手）</span>
+          <span class="diff-desc">你用粉白棋，开局第一步由你下</span>
         </button>
         <button class="diff-btn" id="side-black">
-          <span class="diff-emoji">⚫</span>
-          <span class="diff-name">执黑（后手）</span>
-          <span class="diff-desc">你用黑子，开局由 AI 先走白棋</span>
+          <span class="diff-emoji" aria-hidden="true">
+            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
+              <radialGradient id="s-b" cx="50%" cy="34%" r="70%">
+                <stop offset="0%" stop-color="#e9efff"/><stop offset="30%" stop-color="#8fb3ff"/>
+                <stop offset="60%" stop-color="#7a5bff"/><stop offset="85%" stop-color="#4a2bc7"/><stop offset="100%" stop-color="#241070"/>
+              </radialGradient></defs>
+              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-b)" stroke="#c0b8ff" stroke-opacity="0.72" stroke-width="1.4"/>
+              <polygon points="50,10 68,30 50,44 32,30" fill="#d7e6ff" fill-opacity="0.4"/>
+              <circle cx="46" cy="40" r="3" fill="#e9f2ff" fill-opacity="0.9"/></svg>
+          </span>
+          <span class="diff-name">执紫蓝（后手）</span>
+          <span class="diff-desc">你用紫蓝棋，开局由 AI 先走粉白棋</span>
         </button>
       </div>
       <div class="modal-actions" style="justify-content:center">
@@ -965,9 +1022,10 @@ window.__moon_chess_showOnlineTip = function() {
 };
   </script>
   <script>
-// AI 算法 —— 井字棋 + 消失规则
-// 棋盘值: 0 空, 1 先手(玩家), 2 后手(AI 默认)
-// pieces: { 1: [{row,col},...], 2: [{row,col},...] }  FIFO 队列
+// AI 算法 —— 井字棋 + 消失规则（全局最多 5 颗，超过则消失全局最旧棋子）
+// 棋盘值: 0 空, 1 先手(玩家白/粉白), 2 后手(AI 默认紫蓝)
+// pieces: { 1: [{row,col},...], 2: [{row,col},...] } 每方棋子队列(FIFO,本方先后)
+// order:  [{player,row,col}, ...] 全局落子顺序（FIFO，超过 5 则 shift 最旧）
 
 function cloneBoard(board) {
   return board.map((r) => r.slice());
@@ -978,6 +1036,10 @@ function clonePieces(pieces) {
     1: pieces[1].map((p) => ({ ...p })),
     2: pieces[2].map((p) => ({ ...p })),
   };
+}
+
+function cloneOrder(order) {
+  return order.map((o) => ({ ...o }));
 }
 
 function checkWin(board) {
@@ -994,18 +1056,20 @@ function checkWin(board) {
   return 0;
 }
 
-// 模拟一次落子，返回新的 { board, pieces, winner }
-function simulate(board, pieces, row, col, player) {
+// 模拟一次落子（全局 5 上限 FIFO），返回新的 { board, pieces, order, winner }
+function simulate(board, pieces, order, row, col, player) {
   const nb = cloneBoard(board);
   const np = clonePieces(pieces);
-  // ✅ 先移除该方最早的棋子（如果已有 3 颗）
-  if (np[player].length >= 3) {
-    const old = np[player].shift();
-    nb[old.row][old.col] = 0;
-  }
+  const no = cloneOrder(order);
   nb[row][col] = player;
   np[player].push({ row, col });
-  return { board: nb, pieces: np, winner: checkWin(nb) };
+  no.push({ player, row, col });
+  if (no.length > 5) {
+    const old = no.shift();
+    nb[old.row][old.col] = 0;
+    np[old.player].shift(); // 同步清理该方本方队列最旧
+  }
+  return { board: nb, pieces: np, order: no, winner: checkWin(nb) };
 }
 
 function availableMoves(board) {
@@ -1017,19 +1081,18 @@ function availableMoves(board) {
 }
 
 // ========== 难度 1: 简单 ==========
-// 随机落子，但优先看是否能直接赢或必须堵对方
-function aiEasy(board, pieces, aiPlayer) {
+function aiEasy(board, pieces, order, aiPlayer) {
   const human = aiPlayer === 1 ? 2 : 1;
   const moves = availableMoves(board);
 
   // 先找能赢的
   for (const m of moves) {
-    const res = simulate(board, pieces, m.row, m.col, aiPlayer);
+    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
     if (res.winner === aiPlayer) return m;
   }
   // 再找必须堵的
   for (const m of moves) {
-    const res = simulate(board, pieces, m.row, m.col, human);
+    const res = simulate(board, pieces, order, m.row, m.col, human);
     if (res.winner === human) return m;
   }
   // 随机
@@ -1037,20 +1100,19 @@ function aiEasy(board, pieces, aiPlayer) {
 }
 
 // ========== 难度 2: 正常 ==========
-// 带 2 步前瞻的 minimax，考虑消失机制
-function aiNormal(board, pieces, aiPlayer) {
+function aiNormal(board, pieces, order, aiPlayer) {
   const human = aiPlayer === 1 ? 2 : 1;
   const moves = availableMoves(board);
   if (moves.length === 0) return null;
 
   // 立即赢
   for (const m of moves) {
-    const res = simulate(board, pieces, m.row, m.col, aiPlayer);
+    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
     if (res.winner === aiPlayer) return m;
   }
   // 堵对手立即赢
   for (const m of moves) {
-    const res = simulate(board, pieces, m.row, m.col, human);
+    const res = simulate(board, pieces, order, m.row, m.col, human);
     if (res.winner === human) return m;
   }
 
@@ -1059,17 +1121,17 @@ function aiNormal(board, pieces, aiPlayer) {
   let bestScore = -Infinity;
 
   for (const m of moves) {
-    const after = simulate(board, pieces, m.row, m.col, aiPlayer);
+    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
     if (after.winner === aiPlayer) return m;
 
     // 对手最好回应
     let worst = -Infinity;
     const enemyMoves = availableMoves(after.board);
     for (const em of enemyMoves) {
-      const eAfter = simulate(after.board, after.pieces, em.row, em.col, human);
+      const eAfter = simulate(after.board, after.pieces, after.order, em.row, em.col, human);
       if (eAfter.winner === human) { worst = 100; break; }
       if (eAfter.winner === aiPlayer) { worst = -100; continue; }
-      worst = Math.max(worst, 0); // 未知局面简化为 0
+      worst = Math.max(worst, 0);
     }
     const score = -worst;
     if (score > bestScore) { bestScore = score; best = m; }
@@ -1078,17 +1140,14 @@ function aiNormal(board, pieces, aiPlayer) {
 }
 
 // ========== 难度 3: 困难 ==========
-// 完整 minimax + alpha-beta 剪枝，深度 5
-function aiHard(board, pieces, aiPlayer, depth = 5) {
+function aiHard(board, pieces, order, aiPlayer, depth = 5) {
   const human = aiPlayer === 1 ? 2 : 1;
   const MAX_DEPTH = depth;
 
   function evaluate(b) {
-    // 给局面打分: 看双方未来能形成的威胁
     const win = checkWin(b);
     if (win === aiPlayer) return 10000;
     if (win === human) return -10000;
-    // 简单启发：中心 +2，角落 +1
     let score = 0;
     const center = b[1][1];
     if (center === aiPlayer) score += 3;
@@ -1101,7 +1160,7 @@ function aiHard(board, pieces, aiPlayer, depth = 5) {
     return score;
   }
 
-  function minimax(b, pcs, player, d, alpha, beta) {
+  function minimax(b, pcs, ord, player, d, alpha, beta) {
     const win = checkWin(b);
     if (win !== 0) return win === aiPlayer ? 10000 - (MAX_DEPTH - d) : -10000 + (MAX_DEPTH - d);
     if (d === 0) return evaluate(b);
@@ -1112,8 +1171,8 @@ function aiHard(board, pieces, aiPlayer, depth = 5) {
     if (player === aiPlayer) {
       let best = -Infinity;
       for (const m of moves) {
-        const after = simulate(b, pcs, m.row, m.col, player);
-        const v = minimax(after.board, after.pieces, human, d - 1, alpha, beta);
+        const after = simulate(b, pcs, ord, m.row, m.col, player);
+        const v = minimax(after.board, after.pieces, after.order, human, d - 1, alpha, beta);
         best = Math.max(best, v);
         alpha = Math.max(alpha, v);
         if (beta <= alpha) break;
@@ -1122,8 +1181,8 @@ function aiHard(board, pieces, aiPlayer, depth = 5) {
     } else {
       let best = Infinity;
       for (const m of moves) {
-        const after = simulate(b, pcs, m.row, m.col, player);
-        const v = minimax(after.board, after.pieces, aiPlayer, d - 1, alpha, beta);
+        const after = simulate(b, pcs, ord, m.row, m.col, player);
+        const v = minimax(after.board, after.pieces, after.order, aiPlayer, d - 1, alpha, beta);
         best = Math.min(best, v);
         beta = Math.min(beta, v);
         if (beta <= alpha) break;
@@ -1132,15 +1191,15 @@ function aiHard(board, pieces, aiPlayer, depth = 5) {
     }
   }
 
-  // 先看立即赢
   const currentMoves = availableMoves(board);
+  // 先看立即赢
   for (const m of currentMoves) {
-    const after = simulate(board, pieces, m.row, m.col, aiPlayer);
+    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
     if (after.winner === aiPlayer) return m;
   }
   // 堵立即输
   for (const m of currentMoves) {
-    const after = simulate(board, pieces, m.row, m.col, human);
+    const after = simulate(board, pieces, order, m.row, m.col, human);
     if (after.winner === human) return m;
   }
 
@@ -1150,17 +1209,17 @@ function aiHard(board, pieces, aiPlayer, depth = 5) {
   const candidates = currentMoves.sort(() => Math.random() - 0.5).slice(0, Math.min(5, currentMoves.length));
 
   for (const m of candidates) {
-    const after = simulate(board, pieces, m.row, m.col, aiPlayer);
-    const score = minimax(after.board, after.pieces, human, MAX_DEPTH - 1, -Infinity, Infinity);
+    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
+    const score = minimax(after.board, after.pieces, after.order, human, MAX_DEPTH - 1, -Infinity, Infinity);
     if (score > bestScore) { bestScore = score; bestMove = m; }
   }
   return bestMove;
 }
 
-function aiMove(board, pieces, aiPlayer, difficulty) {
-  if (difficulty === 'easy') return aiEasy(board, pieces, aiPlayer);
-  if (difficulty === 'normal') return aiNormal(board, pieces, aiPlayer);
-  return aiHard(board, pieces, aiPlayer);
+function aiMove(board, pieces, order, aiPlayer, difficulty) {
+  if (difficulty === 'easy')   return aiEasy(board, pieces, order, aiPlayer);
+  if (difficulty === 'normal') return aiNormal(board, pieces, order, aiPlayer);
+  return aiHard(board, pieces, order, aiPlayer);
 }
 
 window.AI = { aiMove };
@@ -1187,25 +1246,30 @@ class LocalGame {
   reset() {
     this.board = Array.from({ length: 3 }, () => Array(3).fill(0));
     this.current = P1;
-    this.pieces = { 1: [], 2: [] };
+    this.pieces = { 1: [], 2: [] };       // 每方棋子队列（按本方落子先后 FIFO）
+    this.order  = [];                     // 全局落子顺序（所有棋子共享 FIFO，上限 5 颗，超出则移除全局最旧）
     this.status = 'playing';
     this.winner = 0;
     this.winLine = null;
-    this.pendingRemove = null;
+    this.pendingRemove = null;            // 下一手放置将会消失的棋子（全局 order[0]）= 对方执棋时本方闪烁
   }
   place(row, col, player) {
     if (this.status !== 'playing') return { ok: false };
     if (player !== this.current) return { ok: false };
     if (this.board[row][col] !== 0) return { ok: false };
 
-    let removed = null;
-    if (this.pieces[player].length >= 3) {
-      const old = this.pieces[player].shift();
-      this.board[old.row][old.col] = 0;
-      removed = old;
-    }
+    // 先落下新棋，然后判断是否超过全局 5 颗上限（超过则移除全局最旧那颗）
     this.board[row][col] = player;
     this.pieces[player].push({ row, col });
+    this.order.push({ player, row, col });
+
+    let removed = null;
+    if (this.order.length > 5) {
+      const old = this.order.shift();
+      this.board[old.row][old.col] = 0;
+      this.pieces[old.player].shift();   // 同步清理该方本方队列最旧项
+      removed = old;
+    }
 
     const win = this._checkWin(this.board);
     if (win.winner !== 0) {
@@ -1218,11 +1282,16 @@ class LocalGame {
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    // ✅ pendingRemove 必须基于「接下来要落子的人」计算（而非上一手玩家）
-    // 轮到 B 走，如果 B 已经有 3 颗，则提示 B 自己最早那颗下次会消失
-    if (this.pieces[next].length >= 3) {
-      const oldest = this.pieces[next][0];
-      this.pendingRemove = { player: next, row: oldest.row, col: oldest.col };
+    // 若当前满 5 颗，下一手放置会触发“全局最旧一颗消失”预警闪烁
+    // 用户规则：对方执棋时本方闪烁，对方下子时本方消失；反之亦然（本方执棋时对方闪烁）
+    // → 只在待消失棋子（order[0]）不属于当前执棋方时，才标记为 pendingRemove 闪烁
+    if (this.order.length === 5) {
+      const oldest = this.order[0];
+      if (oldest.player !== this.current) {
+        this.pendingRemove = { player: oldest.player, row: oldest.row, col: oldest.col };
+      } else {
+        this.pendingRemove = null;
+      }
     } else {
       this.pendingRemove = null;
     }
@@ -1249,7 +1318,8 @@ class LocalGame {
       winner: this.winner,
       winLine: this.winLine,
       pendingRemove: this.pendingRemove,
-      pieces: { 1: this.pieces[1].map(p => ({...p})), 2: this.pieces[2].map(p => ({...p})) }
+      pieces: { 1: this.pieces[1].map(p => ({...p})), 2: this.pieces[2].map(p => ({...p})) },
+      order:  this.order.map(o => ({...o})),
     };
   }
 }
@@ -1500,23 +1570,28 @@ const App = {
     this.aiCandidates = [];
     this.aiCandidatesActiveIdx = 0;
   },
-  startAiCandidateCycle(boardArr, totalDelay) {
+  startAiCandidateCycle(boardArr, totalDelay, mustIncludeKey) {
     // 从所有空格挑 2-3 个候选位置，循环切换红圈
+    // mustIncludeKey: "r-c"（真实 AI 将落子的位置）— 必须在候选中，保证最后一个高亮与实际落子一致
     const empties = [];
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (boardArr[r][c] === 0) empties.push([r, c]);
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (boardArr[r][c] === 0) empties.push(`${r}-${c}`);
     if (empties.length === 0) return;
-    // Fisher-Yates 取前 2-3 个
+    // Fisher-Yates
     for (let i = empties.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [empties[i], empties[j]] = [empties[j], empties[i]];
     }
-    const n = Math.max(2, Math.min(3, empties.length));
-    // 统一存储为字符串，便于 render 内的 indexOf 匹配
-    this.aiCandidates = empties.slice(0, n).map(([r, c]) => `${r}-${c}`);
+    const targetN = Math.max(2, Math.min(3, empties.length));
+    let picked = empties.slice(0, targetN);
+    // 确保 mustIncludeKey 包含在内（如果提供且合法）
+    if (mustIncludeKey && empties.includes(mustIncludeKey) && !picked.includes(mustIncludeKey)) {
+      picked[targetN - 1] = mustIncludeKey;
+    }
+    this.aiCandidates = picked;
     this.aiCandidatesActiveIdx = 0;
 
-    // 候选切换周期：使总周期大概轮换 3-6 次 depending on total delay
-    const cyclePeriod = Math.max(240, Math.min(520, Math.floor(totalDelay / 6)));
+    // 候选切换周期：调慢，总时间内约 2-3 次循环切换（最低 700ms，用户要求"跳得慢一点"）
+    const cyclePeriod = Math.max(700, Math.min(1100, Math.floor(totalDelay / 4.2)));
     this.render();
     this.aiCandidatesTimer = setInterval(() => {
       this.aiCandidatesActiveIdx = (this.aiCandidatesActiveIdx + 1) % this.aiCandidates.length;
@@ -1829,40 +1904,49 @@ const App = {
     const base = { easy: 1600, normal: 1250, hard: 950 }[this.difficulty] || 1200;
     const jitter = Math.floor(Math.random() * 700);
     const totalDelay = base + jitter;
-    // 在 ~45% 时间点真正计算 AI 最佳着；在此之前先跑 2-3 候选红圈动画
-    const computeDelay = Math.floor(totalDelay * (0.4 + Math.random() * 0.15));
-    const placeDelay   = totalDelay - computeDelay;
 
-    // 启动 AI 候选红圈循环（2-3 个位置动画切换）
-    this.startAiCandidateCycle(this.local.board, totalDelay);
+    // 第一步：同步计算真实 AI 着法（计算很快），以便：
+    //   ① 把 AI 真正的落子点塞入候选红圈，保证最后一个高亮就是落子位置
+    //   ② 不会下到候选没显示过的位置
+    const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
+    if (!move) {
+      this.clearAiTimer(true);
+      this.stopAiCandidateCycle();
+      this.setBoardDisabled(false);
+      this.render();
+      return;
+    }
+    const moveKey = `${move.row}-${move.col}`;
+
+    // 启动候选红圈循环切换，并强制包含真实位置 moveKey
+    this.startAiCandidateCycle(this.local.board, totalDelay, moveKey);
     this.render();
 
+    // 大部分时间用于候选切换动画；结束前定格在真实落子位置再下棋
     this.aiTimer = setTimeout(() => {
-      const move = AI.aiMove(this.local.board, this.local.pieces, aiPlayerNum, this.difficulty);
-      if (!move) {
-        this.clearAiTimer(true);
-        this.stopAiCandidateCycle();
-        this.setBoardDisabled(false);
+      // 定格在真实落子点高亮（给用户一个“就下这里”的确认感）
+      const idx = this.aiCandidates.indexOf(moveKey);
+      if (idx >= 0) {
+        this.aiCandidatesActiveIdx = idx;
         this.render();
-        return;
       }
-      // 计算完之后仍保持红圈动画一小会（placeDelay）再落子
+      // 稍等定格展示 300ms 后真正落子
       this.aiTimer = setTimeout(() => {
         this.stopAiCandidateCycle();
-        this.local.place(move.row, move.col, aiPlayerNum);
+        const res = this.local.place(move.row, move.col, aiPlayerNum);
         this.aiTimer = null;
         this.state = this.local.snapshot();
         this.setBoardDisabled(false);
         this.updateRestartButton();
         this.render();
+        if (!res) return;
+        if (this.state.status === 'ended') return;
         const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
-        // 如果玩家还没获胜/平局，且又轮到玩家，就不再触发 AI
-        // 如果游戏结束则 banner 会显示；如果再继续轮到 AI（极端 case），手动触发：
-        if (this.state.status === 'playing' && this.state.current !== humanPlayer) {
+        if (this.state.current !== humanPlayer) {
           this.scheduleAiMove(this.state.current);
         }
-      }, placeDelay);
-    }, computeDelay);
+      }, 320);
+    }, totalDelay - 320);
   },
 
   // 顶部重开 / 结束横幅「再来一局」共用
@@ -2012,67 +2096,72 @@ const App = {
     const cur = this.state.current;
     let label = '';
     let dotHtml = '';
+    let miniGem = '';
 
     if (this.state.status === 'ended') {
-      // 胜利归属由 winner 决定 — 白 / 黑 / 平局
+      // 胜利文案改为玩家视角：本方胜利 / AI胜利 / 平局
       const w = this.state.winner;
-      if (w === 0) label = '平局';
-      else if (w === WHITE) label = '白方胜利！ 🎉';
-      else label = '黑方胜利！';
+      if (w === 0) {
+        label = '平局';
+      } else if (this.mode === 'local') {
+        const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+        label = (w === humanPlayer) ? '本方胜利！ 🎉' : 'AI胜利！';
+        miniGem = this._miniGemSVG(w === humanPlayer ? humanPlayer : (this.playerSide === 'white' ? BLACK : WHITE));
+      } else {
+        // online 视角：本方 / 对方
+        label = (w === this.mySeat) ? '本方胜利！ 🎉' : '对方胜利！';
+      }
     } else if (this.mode === 'local') {
       const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
       const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
-      const sideHint = mySideLabel(this.playerSide);
+      // 简化：只显示"你的回合 / AI 思考中" + 迷你棋子图标（本方颜色）
+      miniGem = this._miniGemSVG(humanPlayer);
       if (cur === humanPlayer) {
-        label = `${sideHint} · 你的回合`;
+        label = '你的回合';
       } else {
-        // AI 思考中 — 显示提示小点；候选循环阶段仍用同文案
-        label = `${sideHint} · AI 思考中`;
+        label = 'AI 思考中';
         dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
       }
     } else if (this.mode === 'online') {
+      miniGem = this._miniGemSVG(this.mySeat);
       label = cur === this.mySeat ? '你的回合' : '对方回合';
       if (cur !== this.mySeat) dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
     } else {
       label = cur === WHITE ? '白方回合' : '黑方回合';
     }
-    el.innerHTML = label + dotHtml;
+    el.innerHTML = miniGem + label + dotHtml;
     // 颜色：本地/联机都根据 cur 选用白色类或黑色类（white/black），ended 保持中性 white
-    if (this.state.status === 'ended') el.className = 'white';
-    else if (this.mode === 'local') el.className = (cur === WHITE) ? 'white' : 'black';
-    else el.className = (cur === this.mySeat) ? 'white' : 'black';
+    if (this.state.status === 'ended') el.className = 'turn-indicator ended';
+    else if (this.mode === 'local') el.className = 'turn-indicator ' + ((cur === WHITE) ? 'white' : 'black');
+    else el.className = 'turn-indicator ' + ((cur === this.mySeat) ? 'white' : 'black');
+  },
+
+  _miniGemSVG(player) {
+    // 迷你棋子图标（嵌入 turn-indicator）
+    if (player === WHITE) {
+      return `<svg class="mini-gem" viewBox="0 0 100 100" aria-hidden="true"><defs>
+        <radialGradient id="mgw" cx="48%" cy="36%" r="68%">
+          <stop offset="0%" stop-color="#ffffff"/><stop offset="40%" stop-color="#ffd5ef"/>
+          <stop offset="75%" stop-color="#ff9bd1"/><stop offset="100%" stop-color="#c97bff"/>
+        </radialGradient></defs>
+        <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#mgw)" stroke="#ffd8ec" stroke-opacity="0.7" stroke-width="1.4"/>
+        <polygon points="50,10 68,30 50,44 32,30" fill="#ffffff" fill-opacity="0.55"/>
+        <circle cx="46" cy="40" r="4" fill="#ffffff" fill-opacity="0.9"/></svg>`;
+    } else {
+      return `<svg class="mini-gem" viewBox="0 0 100 100" aria-hidden="true"><defs>
+        <radialGradient id="mgb" cx="50%" cy="34%" r="70%">
+          <stop offset="0%" stop-color="#e9efff"/><stop offset="30%" stop-color="#8fb3ff"/>
+          <stop offset="60%" stop-color="#7a5bff"/><stop offset="88%" stop-color="#4a2bc7"/><stop offset="100%" stop-color="#241070"/>
+        </radialGradient></defs>
+        <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#mgb)" stroke="#c0b8ff" stroke-opacity="0.7" stroke-width="1.4"/>
+        <polygon points="50,10 68,30 50,44 32,30" fill="#d7e6ff" fill-opacity="0.42"/>
+        <circle cx="46" cy="40" r="3.6" fill="#e9f2ff" fill-opacity="0.9"/></svg>`;
+    }
   },
 
   renderEndBanner() {
-    if (!this.state) return;
-    const winner = this.state.winner;
-    let cls = '';
-    // 根据本地玩家相对视角分 win/lose 颜色（但 banner.title 现在不显示胜负）
-    if (this.mode === 'local') {
-      if (winner === 0) cls = 'draw';
-      else {
-        const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
-        cls = (winner === humanPlayer) ? 'win' : 'lose';
-      }
-      const again = safeGet('btn-end-again');
-      if (again) { again.style.display = ''; again.textContent = '再来一局'; again.disabled = false; }
-      this.showEndBanner('', cls);
-      return;
-    }
-    // online
-    if (winner === 0) cls = 'draw';
-    else cls = (winner === this.mySeat) ? 'win' : 'lose';
-    const again = safeGet('btn-end-again');
-    if (again) {
-      if (this.mySeat === 1) {
-        again.style.display = '';
-        again.textContent = (this.rematch.status === 'pending') ? '撤回重开请求' : '请求再来一局';
-        again.disabled = false;
-      } else {
-        again.style.display = 'none';
-      }
-    }
-    this.showEndBanner('', cls);
+    // 用户要求：对局结束时只保留顶部一行按钮（重开/退出），移除下方 end-banner 重复按钮排
+    this.hideEndBanner();
   },
 
   _gemSVG(player) {

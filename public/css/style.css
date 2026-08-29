@@ -289,6 +289,45 @@ body::after {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 16px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+}
+.game-header .turn-indicator {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.game-header .game-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.game-header .game-actions .btn {
+  padding: 10px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 嵌入 turn-indicator 内的迷你棋子图标 */
+.mini-gem {
+  width: 20px; height: 20px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.turn-indicator.ended {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(157,78,221,0.35), rgba(76,201,240,0.3));
+  border-color: rgba(199,125,255,0.4);
+  text-shadow: 0 0 10px rgba(255, 220, 255, 0.7);
+  font-weight: 700;
 }
 
 .turn-indicator {
@@ -544,11 +583,11 @@ body::after {
   box-shadow:
     0 0 14px rgba(255, 70, 90, 0.5),
     inset 0 0 10px rgba(255, 70, 90, 0.28);
-  animation: candidatePulse 0.9s ease-in-out infinite;
+  animation: candidatePulse 1.6s ease-in-out infinite;
 }
 @keyframes candidatePulse {
-  0%,100% { transform: scale(1.02); opacity: 0.9; }
-  50%     { transform: scale(1.12); opacity: 1;   }
+  0%,100% { transform: scale(1.02); opacity: 0.88; }
+  50%     { transform: scale(1.14); opacity: 1;    }
 }
 
 /* 落子动效 */
@@ -561,16 +600,16 @@ body::after {
   100% { transform: scale(1) translateY(0); }
 }
 
-/* 消失预告闪烁（棋子自身的动画；结合单元格.marked-to-remove 让用户一眼看见） */
+/* 消失预告闪烁（棋子自身的动画；用户要求速度调慢 — 2.2s 周期） */
 .piece.fading {
-  animation: fadeBlink 1.2s ease-in-out infinite;
-  filter: drop-shadow(0 0 14px rgba(255, 80, 130, 0.75));
+  animation: fadeBlink 2.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(255, 80, 130, 0.8));
 }
 @keyframes fadeBlink {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  30% { opacity: 0.35; transform: scale(0.85); }
-  60% { opacity: 1; transform: scale(1); }
-  75% { opacity: 0.6; }
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  28%      { opacity: 0.32; transform: scale(0.85); }
+  52%      { opacity: 1;    transform: scale(1.02); }
+  76%      { opacity: 0.55; transform: scale(0.96); }
 }
 
 /* ============ 重开投票条 ============ */
