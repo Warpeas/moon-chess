@@ -154,7 +154,7 @@ class Game {
 
 // ============ 房间管理 ============
 
-const rooms = new Map(); // roomCode -> { roomCode, host, players: [socketId,...], game, rematchVotes: {} }
+const rooms = new Map(); // roomCode -> { roomCode, host, players: [socketId,...], game, rematch: {status, guestResponse} }
 
 function generateRoomCode() {
   // 6 位大写字母+数字，去掉容易混淆的字符
@@ -185,7 +185,7 @@ io.on('connection', (socket) => {
       roomCode: code,
       players: [socket.id],
       game: new Game(),
-      rematchVotes: {}, // socketId -> true
+      rematch: { status: 'none', guestResponse: null },
       host: socket.id,
     };
     rooms.set(code, room);
@@ -274,63 +274,108 @@ io.on('connection', (socket) => {
       return;
     }
     io.to(roomCode).emit('game:update', result);
-    // 重置重开投票
-    if (room.game.status === 'ended') {
-      room.rematchVotes = {};
-    }
+    // 新一局开始 / 对局进行中：清空重开状态（每次落子都清）
+    room.rematch = { status: 'none', guestResponse: null };
   });
 
-  // 重开投票
-  socket.on('game:rematch', ({ roomCode, vote }) => {
+  // ======== 重开协议 V2 ========
+  // 规则：
+  //  - 只有房主（seat 1）可以「发起 / 撤回」重开请求
+  //  - 客人（seat 2）只能「同意 / 拒绝」
+  //  - 客人关闭页面 / 掉线（disconnect 触发）视为拒绝
+  // 事件：
+  //  client -> server:
+  //    game:rematch { roomCode, cancel?: true }   // 房主用：cancel=true 撤回，否则发起
+  //    game:rematchResponse { roomCode, accept: true|false }   // 客人用
+  //  server -> room:
+  //    game:rematchUpdate { status: 'none'|'pending'|'accepted'|'rejected', guestResponse: null|true|false }
+  //    game:restarted { game: snapshot }
+
+  function broadcastRematch(room) {
+    io.to(room.roomCode).emit('game:rematchUpdate', {
+      status: room.rematch.status,
+      guestResponse: room.rematch.guestResponse,
+    });
+  }
+
+  socket.on('game:rematch', ({ roomCode, cancel }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
-    const seat = room.players.indexOf(socket.id);
-    if (seat === -1) return;
-    if (room.game.status !== 'ended') return;
-
-    if (vote) room.rematchVotes[socket.id] = true;
-    else delete room.rematchVotes[socket.id];
-
-    io.to(roomCode).emit('game:rematchUpdate', {
-      votes: Object.keys(room.rematchVotes).length,
-      needed: room.players.length,
-    });
-
-    // 双方都同意则重开
-    if (room.players.every((id) => room.rematchVotes[id])) {
-      room.game = new Game();
-      room.rematchVotes = {};
-      io.to(roomCode).emit('game:restarted', { game: room.game.snapshot() });
+    if (room.host !== socket.id) return; // 仅房主可触发
+    const guestId = room.players[1];
+    const guestAlive = !!guestId && !!io.sockets.sockets.get(guestId);
+    if (!cancel) {
+      // 发起请求
+      if (!guestAlive) {
+        // 客人不在线：房主点重开=直接重开
+        room.game = new Game();
+        room.rematch = { status: 'none', guestResponse: null };
+        io.to(roomCode).emit('game:restarted', { game: room.game.snapshot() });
+        return;
+      }
+      if (room.rematch.status !== 'pending') {
+        room.rematch = { status: 'pending', guestResponse: null };
+        broadcastRematch(room);
+      }
+    } else {
+      // 撤回
+      if (room.rematch.status === 'pending') {
+        room.rematch = { status: 'none', guestResponse: null };
+        broadcastRematch(room);
+      }
     }
   });
 
-  // 强制重开（主机可以直接重开）
+  socket.on('game:rematchResponse', ({ roomCode, accept }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
+    if (room.players[1] !== socket.id) return; // 仅 seat2 可响应
+    if (room.rematch.status !== 'pending') return;
+    if (accept) {
+      room.rematch = { status: 'accepted', guestResponse: true };
+      broadcastRematch(room);
+      // 真正重开
+      room.game = new Game();
+      room.rematch = { status: 'none', guestResponse: null };
+      io.to(roomCode).emit('game:restarted', { game: room.game.snapshot() });
+    } else {
+      room.rematch = { status: 'rejected', guestResponse: false };
+      broadcastRematch(room);
+    }
+  });
+
+  // 兼容旧的强制重开（房主仍可随时调用）：立即重开（不经过投票）
   socket.on('game:restart', ({ roomCode }) => {
     const room = rooms.get(roomCode);
     if (!room) return;
     if (room.host !== socket.id) return;
     room.game = new Game();
-    room.rematchVotes = {};
+    room.rematch = { status: 'none', guestResponse: null };
     io.to(roomCode).emit('game:restarted', { game: room.game.snapshot() });
   });
 
   // 玩家断开
   socket.on('disconnect', () => {
     for (const [code, room] of rooms.entries()) {
-      if (room.players.includes(socket.id)) {
-        io.to(code).emit('room:playerLeft', { players: getPublicPlayers(room) });
-        // 延迟清理：给重连留时间（这里为简单，直接踢掉）
-        room.players = room.players.filter((id) => id !== socket.id);
-        if (room.players.length === 0) {
-          rooms.delete(code);
-          console.log(`[ROOM] ${code} destroyed (empty)`);
-        }
+      const idx = room.players.indexOf(socket.id);
+      if (idx === -1) continue;
+      // 规则：客人离开=默认拒绝重开
+      if (idx === 1 && room.rematch.status === 'pending') {
+        room.rematch = { status: 'rejected', guestResponse: false };
+        broadcastRematch(room);
+      }
+      io.to(code).emit('room:playerLeft', { players: getPublicPlayers(room) });
+      room.players = room.players.filter((id) => id !== socket.id);
+      if (room.players.length === 0) {
+        rooms.delete(code);
+        console.log(`[ROOM] ${code} destroyed (empty)`);
       }
     }
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Moon Chess server listening on port ${PORT}`);
+const HOST = process.env.HOST || '0.0.0.0';
+server.listen(PORT, HOST, () => {
+  console.log(`Moon Chess server listening on ${HOST}:${PORT}`);
 });

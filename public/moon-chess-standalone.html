@@ -51,10 +51,6 @@ html, body {
 .rematch-bar { display: none; }
 .rematch-bar.show { display: flex; }
 
-/* 强制重开按钮默认隐藏 */
-#btn-force-restart { display: none; }
-#btn-force-restart.show { display: inline-flex; }
-
 /* ============ 星空背景 ============ */
 .stars {
   position: fixed; inset: 0;
@@ -676,20 +672,14 @@ body::after {
         </div>
       </div>
 
-      <!-- 重开投票栏（联机） -->
+      <!-- 重开投票栏（仅联机显示，单机不显示） -->
       <div class="rematch-bar" id="rematch-bar">
-
-        <div class="rematch-info">
-          重开投票：<span id="rematch-count">0/2</span> 已同意
-        </div>
+        <div class="rematch-info" id="rematch-info">等待房主发起重开…</div>
         <div class="rematch-buttons">
           <button class="btn btn-small primary" id="btn-rematch-yes">同意</button>
           <button class="btn btn-small btn-ghost" id="btn-rematch-no">撤回</button>
         </div>
       </div>
-
-      <button class="btn btn-small btn-ghost" id="btn-force-restart">
-强制重开</button>
     </div>
   </section>
 
@@ -738,6 +728,7 @@ body::after {
     <div class="result-modal">
       <div class="result-title" id="result-title">你赢了！</div>
       <div class="result-buttons">
+        <button class="btn" id="btn-result-again">再来一局</button>
         <button class="btn primary" id="btn-result-exit">返回菜单</button>
       </div>
     </div>
@@ -1075,7 +1066,8 @@ const App = {
   roomCode: null,
   mySeat: 1,
   roomPlayers: [],
-  rematchVotes: { count: 0, needed: 0, mine: false },
+  // rematch: { status: 'none'|'pending'|'accepted'|'rejected', byHost: bool, guestResponse: null|true|false }
+  rematch: { status: 'none', byHost: false, guestResponse: null },
 
   // 渲染所需快照
   state: null, // {board,current,status,winner,winLine,pendingRemove,pieces}
@@ -1104,10 +1096,9 @@ const App = {
     document.getElementById('btn-restart').addEventListener('click', () => this.handleRestart());
     document.getElementById('btn-exit').addEventListener('click', () => this.exitToMenu());
 
-    // 重开投票
-    document.getElementById('btn-rematch-yes').addEventListener('click', () => this.voteRematch(true));
-    document.getElementById('btn-rematch-no').addEventListener('click', () => this.voteRematch(false));
-    document.getElementById('btn-force-restart').addEventListener('click', () => this.handleRestart());
+    // 重开按钮（联机：房主发起/撤回；客人端看到同意/拒绝）
+    document.getElementById('btn-rematch-yes').addEventListener('click', () => this.rematchAction('accept'));
+    document.getElementById('btn-rematch-no').addEventListener('click', () => this.rematchAction('cancel'));
 
     // 棋盘点击
     document.querySelectorAll('.cell').forEach((el) => {
@@ -1134,6 +1125,8 @@ const App = {
       document.getElementById('result-overlay').classList.remove('show');
       this.exitToMenu();
     });
+    // 再来一局
+    document.getElementById('btn-result-again').addEventListener('click', () => this.handleRestart());
 
     window.addEventListener('resize', () => this.render());
   },
@@ -1146,6 +1139,7 @@ const App = {
     document.getElementById('difficulty-select').classList.remove('show');
     document.getElementById('result-overlay').classList.remove('show');
     document.getElementById('rematch-bar').classList.remove('show');
+    this.rematch = { status: 'none', byHost: false, guestResponse: null };
   },
 
   showDifficultySelect() {
@@ -1169,7 +1163,9 @@ const App = {
     document.getElementById('difficulty-select').classList.remove('show');
     document.getElementById('game').classList.add('show');
     document.getElementById('room-info').classList.remove('show');
+    this.rematch = { status: 'none', byHost: false, guestResponse: null };
     this.hideDialogs();
+    this.updateRestartButton();
     this.render();
   },
 
@@ -1183,6 +1179,7 @@ const App = {
     if (window.MOON_CHESS_STANDALONE) { window.__moon_chess_showOnlineTip(); return; }
 
     this.mode = 'online';
+    this.rematch = { status: 'none', byHost: false, guestResponse: null };
     if (!this.socket) {
       this.socket = io();
       this.setupSocket();
@@ -1190,7 +1187,7 @@ const App = {
     document.getElementById('menu').classList.remove('show');
     document.getElementById('game').classList.add('show');
     document.getElementById('room-info').classList.add('show');
-    document.getElementById('room-info').classList.add('show');
+    this.updateRestartButton();
 
     if (this.roomCode) {
       // URL 带房间号
@@ -1200,6 +1197,7 @@ const App = {
 
   createRoom() {
     this.goOnline();
+    if (this.socket) this.socket.emit('room:create');
   },
 
   setupSocket() {
@@ -1212,6 +1210,8 @@ const App = {
       history.replaceState(null, '', `/r/${this.roomCode}`);
       this.updateRoomUI(data);
       this.state = data.game;
+      this.rematch = { status: 'none', byHost: false, guestResponse: null };
+      this.updateRestartButton();
       this.render();
     });
 
@@ -1222,6 +1222,8 @@ const App = {
       history.replaceState(null, '', `/r/${this.roomCode}`);
       this.updateRoomUI(data);
       this.state = data.game;
+      this.rematch = { status: 'none', byHost: false, guestResponse: null };
+      this.updateRestartButton();
       this.render();
     });
 
@@ -1229,6 +1231,7 @@ const App = {
       this.roomPlayers = data.players;
       if (data.game) this.state = data.game;
       this.updateRoomUI(data);
+      this.updateRestartButton();
       this.render();
     });
 
@@ -1238,35 +1241,44 @@ const App = {
     });
 
     s.on('room:playerLeft', () => {
+      if (this.rematch.status === 'pending') {
+        this.rematch.status = 'rejected';
+        this.rematch.guestResponse = false;
+      }
       this.updateRoomUI({});
+      this.updateRestartButton();
+      this.renderResult();
     });
 
     s.on('game:update', (data) => {
       this.state = { ...this.state, ...data };
-      // 也更新 pieces 便于闪烁预告判断
       if (data.current !== undefined) this.state.current = data.current;
       if (data.pendingRemove !== undefined) this.state.pendingRemove = data.pendingRemove;
       if (data.status !== undefined) this.state.status = data.status;
       if (data.winner !== undefined) this.state.winner = data.winner;
       if (data.winLine !== undefined) this.state.winLine = data.winLine;
-
-      // 更新 pieces 映射：前端重建
+      if (data.status === 'playing') {
+        this.rematch = { status: 'none', byHost: false, guestResponse: null };
+      }
       this.rebuildPiecesFromBoard();
+      this.updateRestartButton();
       this.render();
-
-      // AI 回合（联机不需要）
     });
 
     s.on('game:rematchUpdate', (data) => {
-      this.rematchVotes.count = data.votes;
-      this.rematchVotes.needed = data.needed;
+      this.rematch.status = data.status || 'none';
+      this.rematch.guestResponse = (data.guestResponse === undefined) ? null : data.guestResponse;
+      this.rematch.byHost = (data.status === 'pending');
+      this.updateRestartButton();
       this.renderResult();
     });
 
     s.on('game:restarted', ({ game }) => {
       this.state = game;
       this.rebuildPiecesFromBoard();
+      this.rematch = { status: 'none', byHost: false, guestResponse: null };
       document.getElementById('result-overlay').classList.remove('show');
+      this.updateRestartButton();
       this.render();
     });
 
@@ -1300,11 +1312,6 @@ const App = {
     document.getElementById('room-link').textContent = url;
     document.getElementById('room-link').href = url;
 
-    const hostSeat = (this.mySeat === 1);
-    const forceRestart = document.getElementById('btn-force-restart');
-    forceRestart.classList.toggle('show', !!(hostSeat && this.state && this.state.status === 'ended'));
-
-    // 复制链接
     const copyBtn = document.getElementById('btn-copy');
     copyBtn.onclick = () => {
       navigator.clipboard?.writeText(url).then(() => {
@@ -1314,33 +1321,68 @@ const App = {
     };
   },
 
+  updateRestartButton() {
+    const btn = document.getElementById('btn-restart');
+    const bar = document.getElementById('rematch-bar');
+    const again = document.getElementById('btn-result-again');
+
+    if (this.mode === 'local') {
+      btn.textContent = '↻ 重开';
+      btn.disabled = false;
+      bar.classList.remove('show');
+      bar.hidden = true;
+      if (again) { again.style.display = ''; again.disabled = false; }
+      return;
+    }
+    if (this.mode !== 'online') return;
+
+    const isHost = (this.mySeat === 1);
+    const ended = this.state && this.state.status === 'ended';
+    bar.hidden = false;
+    if (isHost) {
+      btn.textContent = (this.rematch.status === 'pending') ? '↻ 撤回重开' : '↻ 请求重开';
+      btn.disabled = false;
+    } else {
+      btn.textContent = '↻ 等待房主';
+      btn.disabled = true;
+    }
+    if (again) {
+      if (!ended) { again.style.display = 'none'; }
+      else if (isHost) {
+        again.style.display = '';
+        again.textContent = (this.rematch.status === 'pending') ? '撤回重开请求' : '请求再来一局';
+        again.disabled = false;
+      } else {
+        again.style.display = 'none';
+      }
+    }
+  },
+
   // ======== 点击处理 ========
   handleCellClick(row, col) {
     if (!this.state || this.state.status !== 'playing') return;
 
     if (this.mode === 'local') {
-      // 本地模式：玩家固定 P1，AI 为 P2
       if (this.state.current !== P1) return;
       const res = this.local.place(row, col, P1);
       if (!res.ok) return;
       this.state = this.local.snapshot();
+      this.updateRestartButton();
       this.render();
-      // AI 自动下
       if (this.state.status === 'playing' && this.state.current === P2) {
         setTimeout(() => {
           const move = AI.aiMove(this.local.board, this.local.pieces, P2, this.difficulty);
           if (move) {
             this.local.place(move.row, move.col, P2);
             this.state = this.local.snapshot();
+            this.updateRestartButton();
             this.render();
           }
         }, 450);
       }
     } else if (this.mode === 'online') {
       if (this.state.current !== this.mySeat) return;
-      const seat = this.mySeat;
-      // 本地预判一下（优化体验）
-      this.socket.emit('game:place', { roomCode: this.roomCode, row, col, seat });
+      this.socket.emit('game:place', { roomCode: this.roomCode, row, col, seat: this.mySeat });
     }
   },
 
@@ -1348,15 +1390,24 @@ const App = {
     if (this.mode === 'local') {
       this.local.reset();
       this.state = this.local.snapshot();
+      document.getElementById('result-overlay').classList.remove('show');
+      this.updateRestartButton();
       this.render();
-    } else if (this.mode === 'online') {
-      // 联机：主机才能直接重开，其他人发起投票
-      if (this.mySeat === 1) {
-        this.socket.emit('game:restart', { roomCode: this.roomCode });
-      } else {
-        // 发起投票也用 rematch
-        this.voteRematch(true);
-      }
+      return;
+    }
+    if (this.mode !== 'online' || !this.socket) return;
+    if (this.mySeat !== 1) return;
+    this.socket.emit('game:rematch', { roomCode: this.roomCode });
+  },
+
+  rematchAction(action) {
+    if (this.mode !== 'online' || !this.socket) return;
+    const isHost = (this.mySeat === 1);
+    if (isHost) {
+      if (action === 'cancel') this.socket.emit('game:rematch', { roomCode: this.roomCode, cancel: true });
+    } else {
+      const accept = (action === 'accept');
+      this.socket.emit('game:rematchResponse', { roomCode: this.roomCode, accept });
     }
   },
 
@@ -1371,9 +1422,8 @@ const App = {
   },
 
   voteRematch(vote) {
-    if (this.mode !== 'online' || !this.socket) return;
-    this.socket.emit('game:rematch', { roomCode: this.roomCode, vote });
-    this.rematchVotes.mine = vote;
+    // 兼容旧版调用（V1 协议已废弃）
+    this.rematchAction(vote ? 'accept' : 'cancel');
   },
 
   // ======== 渲染 ========
@@ -1390,29 +1440,17 @@ const App = {
       if (v !== 0) {
         const piece = document.createElement('div');
         piece.className = 'piece p' + v;
-
-        // 如果是下一个要消失的棋子（预告闪烁）
         const pr = this.state.pendingRemove;
-        // 规则：当前轮次轮到谁，预告的是对方的棋子
-        // 当前回合玩家是 current
-        // pendingRemove 是 current 下一个回合之前要消失的（即 current 自己最老的）
-        // 在本回合，pendingRemove.player 可能等于 current
         if (pr && pr.row === row && pr.col === col) {
           piece.classList.add('fading');
         }
-
-        // 刚被放置的动效：给一个 key 触发
-        // 简化：加 drop 类，由 JS 重新添加触发动画
         piece.classList.add('drop');
         requestAnimationFrame(() => piece.classList.remove('drop'));
-
-        // 宝石 SVG
         piece.innerHTML = this._gemSVG(v);
         el.appendChild(piece);
       }
     });
 
-    // 高亮赢线
     const winLine = this.state.winLine;
     document.querySelectorAll('.cell').forEach((el) => el.classList.remove('win'));
     if (winLine && this.state.status === 'ended') {
@@ -1422,18 +1460,17 @@ const App = {
       }
     }
 
-    // 顶部信息：当前轮到谁
     this.renderTurnIndicator();
 
-    // 结束对话框
     if (this.state.status === 'ended') {
       this.renderResult();
     } else {
       document.getElementById('result-overlay').classList.remove('show');
-      document.getElementById('rematch-bar').classList.remove('show');
+      if (this.mode !== 'online' || this.rematch.status === 'none') {
+        document.getElementById('rematch-bar').classList.remove('show');
+      }
     }
 
-    // 联机信息
     if (this.mode === 'online') {
       this.updateRoomUI({});
     }
@@ -1461,8 +1498,13 @@ const App = {
 
   renderResult() {
     const overlay = document.getElementById('result-overlay');
+    const bar = document.getElementById('rematch-bar');
+    const info = document.getElementById('rematch-info');
+    const yesBtn = document.getElementById('btn-rematch-yes');
+    const noBtn = document.getElementById('btn-rematch-no');
+
     overlay.classList.add('show');
-    let winner = this.state.winner;
+    let winner = this.state ? this.state.winner : 0;
     let title;
     if (this.mode === 'local') {
       if (winner === 0) title = '平局！';
@@ -1475,16 +1517,65 @@ const App = {
     } else {
       title = winner === 0 ? '平局' : `玩家 ${winner} 获胜`;
     }
-    document.getElementById('result-title').textContent = title;
+    const titleEl = document.getElementById('result-title');
+    if (titleEl) titleEl.textContent = title;
 
-    // 联机时显示重开投票栏
-    if (this.mode === 'online') {
-      document.getElementById('rematch-bar').classList.add('show');
-      document.getElementById('rematch-count').textContent =
-        `${this.rematchVotes.count}/${this.rematchVotes.needed} 已同意`;
-      document.getElementById('btn-rematch-yes').disabled = this.rematchVotes.mine;
-    } else {
-      document.getElementById('rematch-bar').classList.remove('show');
+    if (this.mode !== 'online') {
+      bar.classList.remove('show');
+      return;
+    }
+
+    const isHost = (this.mySeat === 1);
+    const status = this.rematch.status;
+
+    if (status === 'none') {
+      bar.classList.add('show');
+      if (isHost) {
+        info.textContent = '你可以发起“再来一局”请求（对方同意后立即重开）';
+        yesBtn.style.display = 'none';
+        noBtn.style.display = 'none';
+      } else {
+        info.textContent = '等待房主发起“再来一局”请求…';
+        yesBtn.style.display = 'none';
+        noBtn.style.display = 'none';
+      }
+      return;
+    }
+
+    bar.classList.add('show');
+    if (status === 'pending') {
+      if (isHost) {
+        info.textContent = '已请求“再来一局”，等待对方同意…';
+        yesBtn.style.display = 'none';
+        noBtn.style.display = '';
+        noBtn.textContent = '撤回';
+        noBtn.disabled = false;
+      } else {
+        info.textContent = '房主请求“再来一局”，请选择：';
+        yesBtn.style.display = '';
+        noBtn.style.display = '';
+        yesBtn.textContent = '同意';
+        noBtn.textContent = '拒绝';
+        const responded = (this.rematch.guestResponse === true || this.rematch.guestResponse === false);
+        yesBtn.disabled = responded;
+        noBtn.disabled = responded;
+      }
+    } else if (status === 'accepted') {
+      info.textContent = '双方已同意，正在重开…';
+      yesBtn.style.display = 'none';
+      noBtn.style.display = 'none';
+    } else if (status === 'rejected') {
+      const reason = (this.rematch.guestResponse === false) ? '对方已拒绝重开请求' : '重开请求已取消';
+      info.textContent = reason;
+      yesBtn.style.display = 'none';
+      if (isHost) {
+        noBtn.style.display = '';
+        noBtn.textContent = '重新发起';
+        noBtn.disabled = false;
+        noBtn.onclick = () => this.handleRestart();
+      } else {
+        noBtn.style.display = 'none';
+      }
     }
   },
 
