@@ -1,0 +1,1527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0d1b2a" />
+  <title>Moon Chess · 月蚀棋</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2242%22 fill=%22%237b2cbf%22/><circle cx=%2235%22 cy=%2235%22 r=%2222%22 fill=%22%230d1b2a%22/></svg>" />
+  <style>
+/* ============ 基础样式 ============ */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --bg-0: #04060f;
+  --bg-1: #0a0f22;
+  --bg-2: #101a3a;
+  --accent: #9d4edd;
+  --accent-2: #7b2cbf;
+  --accent-3: #c77dff;
+  --cool-blue: #4cc9f0;
+  --soft-blue: #4895ef;
+  --text: #e8ecff;
+  --text-dim: #aab3d6;
+  --board-line: rgba(200, 220, 255, 0.28);
+  --cell-hi: rgba(200, 220, 255, 0.12);
+  --shadow: 0 10px 40px rgba(0,0,0,0.55);
+  --radius: 16px;
+}
+
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: radial-gradient(ellipse at top, #1b1040 0%, var(--bg-1) 35%, var(--bg-0) 100%);
+  overflow: hidden;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 核心规则：.page 必须有 .show 才显示 */
+#menu.page,
+#game.page { display: none; }
+#menu.page.show,
+#game.page.show { display: flex; }
+
+/* room-info 控制 */
+#room-info { display: none; }
+#room-info.show { display: flex; }
+
+/* rematch-bar 默认隐藏 */
+.rematch-bar { display: none; }
+.rematch-bar.show { display: flex; }
+
+/* 强制重开按钮默认隐藏 */
+#btn-force-restart { display: none; }
+#btn-force-restart.show { display: inline-flex; }
+
+/* ============ 星空背景 ============ */
+.stars {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(1px 1px at 20% 30%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 80% 10%, #fff 99%, transparent),
+    radial-gradient(1.5px 1.5px at 50% 60%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 30% 80%, #fff 99%, transparent),
+    radial-gradient(2px 2px at 70% 40%, #c8b6ff 99%, transparent),
+    radial-gradient(1px 1px at 10% 70%, #c8b6ff 99%, transparent),
+    radial-gradient(1px 1px at 90% 85%, #fff 99%, transparent),
+    radial-gradient(1.5px 1.5px at 60% 20%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 40% 50%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 15% 15%, #c8b6ff 99%, transparent);
+  background-size: 400px 400px;
+  opacity: 0.7;
+  animation: starDrift 120s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.stars2 {
+  background-size: 550px 550px;
+  opacity: 0.4;
+  animation-duration: 200s;
+  animation-direction: reverse;
+}
+@keyframes starDrift {
+  0% { transform: translate3d(0,0,0); }
+  100% { transform: translate3d(-200px,-100px,0); }
+}
+
+/* 飘浮的荧光装饰 */
+body::before, body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #7b2cbf, transparent 70%);
+  top: -150px; left: -150px;
+  animation: floatA 14s ease-in-out infinite;
+}
+body::after {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #4cc9f0, transparent 70%);
+  bottom: -120px; right: -120px;
+  animation: floatB 16s ease-in-out infinite;
+}
+@keyframes floatA {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(80px, 60px) scale(1.15); }
+}
+@keyframes floatB {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(-60px,-50px) scale(1.1); }
+}
+
+/* ============ 顶栏 ============ */
+.top-bar {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  gap: 12px;
+}
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600;
+}
+.brand .logo {
+  font-size: 22px;
+  color: var(--accent-3);
+  filter: drop-shadow(0 0 6px var(--accent-3));
+  animation: twinkle 2.5s ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,100% { opacity: 1; filter: drop-shadow(0 0 6px var(--accent-3)); }
+  50% { opacity: 0.5; filter: drop-shadow(0 0 12px var(--accent-3)); }
+}
+.brand .title {
+  font-size: 18px;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, var(--accent-3), var(--cool-blue));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.room-meta {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.room-code-wrap b { color: var(--accent-3); letter-spacing: 3px; font-weight: 700; }
+.room-link {
+  color: var(--cool-blue);
+  text-decoration: none;
+  max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.room-link:hover { text-decoration: underline; }
+
+/* ============ 主菜单 ============ */
+.page {
+  position: relative; z-index: 5;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 16px;
+}
+
+.hero {
+  text-align: center;
+  max-width: 480px;
+  padding: 20px;
+}
+.big-gem {
+  width: 140px; height: 140px;
+  margin: 0 auto 16px;
+  animation: gemRotate 12s linear infinite;
+  filter: drop-shadow(0 0 30px rgba(157,78,221,0.6));
+}
+@keyframes gemRotate {
+  0% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+  100% { transform: rotate(-6deg); }
+}
+.big-gem svg { width: 100%; height: 100%; }
+
+.hero h1 {
+  margin: 0; font-size: 42px; letter-spacing: 6px;
+  background: linear-gradient(135deg, #fff 0%, var(--accent-3) 40%, var(--cool-blue) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 40px rgba(157,78,221,0.3);
+}
+.subtitle {
+  margin: 6px 0 14px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  font-size: 13px;
+}
+.rules-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+}
+.rules-hint b { color: var(--accent-3); }
+
+.menu-buttons {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 28px; width: 100%; max-width: 320px;
+}
+
+.footer {
+  margin-top: 24px;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 2px;
+  opacity: 0.7;
+}
+
+/* ============ 按钮 ============ */
+.btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  font-size: 15px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s, box-shadow 0.2s, border-color 0.2s;
+  backdrop-filter: blur(10px);
+  font-family: inherit;
+}
+.btn:hover {
+  background: rgba(255,255,255,0.12);
+  transform: translateY(-2px);
+  border-color: rgba(199,125,255,0.5);
+}
+.btn:active { transform: translateY(0); }
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent-3));
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 6px 24px rgba(123,44,191,0.45);
+}
+.btn.primary:hover {
+  box-shadow: 0 10px 32px rgba(123,44,191,0.6);
+}
+.btn.btn-ghost {
+  background: transparent;
+  border-color: rgba(255,255,255,0.15);
+  color: var(--text-dim);
+}
+.btn.btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.btn.btn-small { padding: 8px 14px; font-size: 13px; }
+.btn-small {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 10px; font-size: 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-small:hover { color: var(--text); }
+
+.btn-icon { font-size: 18px; }
+
+/* ============ 对局页面 ============ */
+.game-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 20px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.game-header {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px;
+}
+
+.turn-indicator {
+  font-size: 16px; letter-spacing: 2px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(8px);
+}
+.turn-indicator.p1 { color: var(--accent-3); text-shadow: 0 0 8px rgba(199,125,255,0.6); }
+.turn-indicator.p2 { color: var(--cool-blue); text-shadow: 0 0 8px rgba(76,201,240,0.6); }
+
+.game-actions { display: flex; gap: 8px; }
+
+/* 棋盘容器 */
+.board-wrap {
+  display: flex; justify-content: center; align-items: center;
+  position: relative;
+}
+
+.board {
+  position: relative;
+  width: min(82vw, 520px);
+  height: min(82vw, 520px);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  padding: 10px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    radial-gradient(circle at center, rgba(157,78,221,0.18), transparent 70%);
+  border: 1px solid rgba(200,220,255,0.15);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 30px 80px rgba(0,0,0,0.6),
+    0 0 60px rgba(76,201,240,0.08),
+    0 0 80px rgba(157,78,221,0.12);
+  backdrop-filter: blur(12px);
+}
+
+/* 棋盘背景魔法线 */
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 24px;
+  background:
+    linear-gradient(to right, transparent calc(33.33% - 0.5px), var(--board-line) calc(33.33%), var(--board-line) calc(33.33% + 0.5px), transparent calc(33.33% + 1px)),
+    linear-gradient(to right, transparent calc(66.66% - 0.5px), var(--board-line) calc(66.66%), var(--board-line) calc(66.66% + 0.5px), transparent calc(66.66% + 1px)),
+    linear-gradient(to bottom, transparent calc(33.33% - 0.5px), var(--board-line) calc(33.33%), var(--board-line) calc(33.33% + 0.5px), transparent calc(33.33% + 1px)),
+    linear-gradient(to bottom, transparent calc(66.66% - 0.5px), var(--board-line) calc(66.66%), var(--board-line) calc(66.66% + 0.5px), transparent calc(66.66% + 1px));
+  animation: linePulse 4s ease-in-out infinite;
+}
+@keyframes linePulse {
+  0%,100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* 单元格 */
+.cell {
+  position: relative;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.cell:hover:not(:has(.piece)) {
+  background: var(--cell-hi);
+}
+.cell.win .piece {
+  animation: winGlow 0.9s ease-in-out infinite;
+}
+@keyframes winGlow {
+  0%,100% { filter: brightness(1.1); }
+  50% { filter: brightness(1.6) drop-shadow(0 0 18px #fff); transform: scale(1.08); }
+}
+
+/* 棋子 */
+.piece {
+  width: 72%; height: 72%;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: opacity 0.25s;
+}
+.piece .gem {
+  width: 100%; height: 100%;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+}
+.piece.p1 .gem { animation: pulseP1 2.2s ease-in-out infinite; }
+.piece.p2 .gem { animation: pulseP2 2.4s ease-in-out infinite; }
+
+@keyframes pulseP1 {
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 6px rgba(199,125,255,0.3)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 14px rgba(199,125,255,0.65)); }
+}
+@keyframes pulseP2 {
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 6px rgba(76,201,240,0.3)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 14px rgba(76,201,240,0.65)); }
+}
+
+/* 落子动效 */
+.piece.drop {
+  animation: dropIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes dropIn {
+  0% { transform: scale(0.2) translateY(-12px); opacity: 0; }
+  60% { transform: scale(1.15) translateY(2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); }
+}
+
+/* 消失预告闪烁（在对方回合时） */
+.piece.fading {
+  animation: fadeBlink 1.2s ease-in-out infinite;
+}
+@keyframes fadeBlink {
+  0%, 100% { opacity: 1; transform: scale(1); filter: grayscale(0); }
+  30% { opacity: 0.35; transform: scale(0.85); filter: grayscale(0.5); }
+  60% { opacity: 1; transform: scale(1); filter: grayscale(0); }
+  75% { opacity: 0.6; }
+}
+
+/* ============ 重开投票条 ============ */
+.rematch-bar {
+  width: 100%; max-width: 480px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius);
+  display: flex; justify-content: space-between; align-items: center;
+  backdrop-filter: blur(8px);
+}
+.rematch-info { color: var(--text-dim); font-size: 13px; letter-spacing: 1px; }
+.rematch-buttons { display: flex; gap: 8px; }
+
+/* ============ 模态框 ============ */
+.modal-mask {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4,6,15,0.75);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 0.25s, visibility 0.25s;
+}
+.modal-mask.show {
+  opacity: 1; visibility: visible; pointer-events: auto;
+}
+.modal-mask[hidden] { display: none !important; }
+
+.modal {
+  min-width: 320px; max-width: 92vw;
+  padding: 28px 24px;
+  background: linear-gradient(180deg, rgba(26,10,64,0.9), rgba(10,15,34,0.95));
+  border: 1px solid rgba(200,220,255,0.18);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(123,44,191,0.2);
+  text-align: center;
+}
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 22px; letter-spacing: 3px;
+  background: linear-gradient(90deg, var(--accent-3), var(--cool-blue));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+.modal .hint {
+  color: var(--text-dim); font-size: 12px; margin: 6px 0 18px;
+}
+.modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 16px; letter-spacing: 2px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(200,220,255,0.2);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus {
+  border-color: var(--accent-3);
+  box-shadow: 0 0 0 3px rgba(199,125,255,0.2);
+}
+
+/* 难度选择 */
+.diff-list {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 18px;
+}
+.diff-btn {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s, background 0.2s, border-color 0.2s;
+  font-family: inherit;
+}
+.diff-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(199,125,255,0.1);
+  border-color: rgba(199,125,255,0.5);
+}
+.diff-emoji { font-size: 28px; }
+.diff-name { font-size: 16px; font-weight: 600; }
+.diff-desc { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+
+/* 结果弹窗 */
+.result-mask {
+  z-index: 60;
+}
+.result-modal {
+  padding: 40px 40px;
+  background: linear-gradient(180deg, rgba(26,10,64,0.95), rgba(10,15,34,0.98));
+  border: 1px solid rgba(200,220,255,0.2);
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 60px rgba(157,78,221,0.3);
+  text-align: center;
+  animation: resultPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes resultPop {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.result-title {
+  font-size: 32px;
+  letter-spacing: 4px;
+  background: linear-gradient(90deg, #fff, var(--accent-3), var(--cool-blue));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  margin-bottom: 22px;
+}
+.result-buttons {
+  display: flex; justify-content: center; gap: 12px;
+}
+
+/* ============ 竖屏适配 ============ */
+@media (max-width: 480px) {
+  .hero h1 { font-size: 36px; }
+  .big-gem { width: 110px; height: 110px; }
+  .board { width: min(88vw, 420px); height: min(88vw, 420px); padding: 8px; gap: 2px; border-radius: 18px; }
+  .cell { border-radius: 10px; }
+  .turn-indicator { font-size: 14px; padding: 8px 14px; letter-spacing: 1px; }
+  .brand .title { font-size: 16px; }
+  .modal { padding: 22px 18px; min-width: 280px; }
+  .room-meta { font-size: 11px; padding: 6px 10px; gap: 6px; }
+  .room-link { max-width: 120px; }
+}
+
+/* ============ 横屏适配 ============ */
+@media (orientation: landscape) and (max-height: 540px) {
+  .page { justify-content: flex-start; padding-top: 10px; }
+  .hero { padding: 10px; max-width: 420px; }
+  .hero h1 { font-size: 30px; }
+  .big-gem { width: 90px; height: 90px; margin-bottom: 8px; }
+  .subtitle { margin: 2px 0 8px; }
+  .rules-hint { padding: 8px 10px; font-size: 11px; margin-bottom: 8px; }
+  .menu-buttons { margin-top: 14px; gap: 8px; max-width: 260px; }
+  .btn { padding: 10px 16px; font-size: 13px; }
+  .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
+  .game-wrap { gap: 12px; }
+  .game-header { padding: 4px 8px; }
+}
+
+/* ============ 桌面大屏 ============ */
+@media (min-width: 1024px) {
+  .menu-buttons { max-width: 340px; }
+  .board { width: 440px; height: 440px; }
+  .big-gem { width: 160px; height: 160px; }
+  .hero h1 { font-size: 52px; }
+}
+
+/* 隐藏 scrollbar */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+</style>
+</head>
+<body>
+  <!-- 星空背景 -->
+  <div class="stars" aria-hidden="true"></div>
+  <div class="stars stars2" aria-hidden="true"></div>
+
+  <!-- 顶部标题栏 -->
+  <header class="top-bar">
+    <div class="brand">
+      <span class="logo">✦</span>
+      <span class="title">Moon Chess</span>
+    </div>
+    <div class="actions" id="room-info">
+
+      <div class="room-meta">
+        <div class="room-code-wrap">房间号 <b id="room-code">--</b></div>
+        <a id="room-link" class="room-link" target="_blank" rel="noopener">链接</a>
+        <button class="btn-small" id="btn-copy">复制</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== 主菜单 ========== -->
+  <section id="menu" class="page show">
+    <div class="hero">
+      <div class="big-gem">
+        <svg viewBox="0 0 200 200">
+          <defs>
+            <radialGradient id="hero-g" cx="50%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#fff" stop-opacity=".8"/>
+              <stop offset="30%" stop-color="#ffc8ff"/>
+              <stop offset="65%" stop-color="#9d4edd"/>
+              <stop offset="100%" stop-color="#1a0033"/>
+            </radialGradient>
+            <filter id="hero-glow"><feGaussianBlur stdDeviation="6"/></filter>
+          </defs>
+          <polygon points="100,10 185,55 185,145 100,190 15,145 15,55" fill="url(#hero-g)" filter="url(#hero-glow)" opacity=".6"/>
+          <polygon points="100,20 175,60 175,140 100,180 25,140 25,60" fill="url(#hero-g)"/>
+        </svg>
+      </div>
+      <h1>月蚀棋</h1>
+      <p class="subtitle">Moon Chess · 三消易，四难留</p>
+      <p class="rules-hint">
+        类似井字棋，先连成三子者胜。但每方棋盘上最多只能有 <b>3 颗棋子</b>——
+        当你再下时，最早下的那颗会 <b>消逝</b>。
+      </p>
+    </div>
+
+    <div class="menu-buttons">
+      <button class="btn primary" id="btn-local">
+        <span class="btn-icon">✦</span> 单机对战
+      </button>
+      <button class="btn" id="btn-online-create">
+        <span class="btn-icon">◈</span> 创建联机房间
+      </button>
+      <button class="btn" id="btn-online-join">
+        <span class="btn-icon">◇</span> 加入房间
+      </button>
+    </div>
+
+    <footer class="footer">
+      <span>⚡ 三消者胜 · 满三者蚀最早</span>
+    </footer>
+  </section>
+
+  <!-- ========== 对局页面 ========== -->
+  <section id="game" class="page">
+    <div class="game-wrap">
+      <!-- 顶部信息 + 操作 -->
+      <div class="game-header">
+        <div id="turn-indicator" class="turn-indicator">你的回合</div>
+        <div class="game-actions">
+          <button class="btn btn-ghost" id="btn-restart" title="重新开始">↻ 重开</button>
+          <button class="btn btn-ghost" id="btn-exit" title="退出对局">✕ 退出</button>
+        </div>
+      </div>
+
+      <!-- 棋盘 -->
+      <div class="board-wrap">
+        <div class="board" id="board">
+          <div class="cell" data-row="0" data-col="0"></div>
+          <div class="cell" data-row="0" data-col="1"></div>
+          <div class="cell" data-row="0" data-col="2"></div>
+          <div class="cell" data-row="1" data-col="0"></div>
+          <div class="cell center" data-row="1" data-col="1"></div>
+          <div class="cell" data-row="1" data-col="2"></div>
+          <div class="cell" data-row="2" data-col="0"></div>
+          <div class="cell" data-row="2" data-col="1"></div>
+          <div class="cell" data-row="2" data-col="2"></div>
+          <!-- 背景装饰线 -->
+          <div class="grid-bg"></div>
+        </div>
+      </div>
+
+      <!-- 重开投票栏（联机） -->
+      <div class="rematch-bar" id="rematch-bar">
+
+        <div class="rematch-info">
+          重开投票：<span id="rematch-count">0/2</span> 已同意
+        </div>
+        <div class="rematch-buttons">
+          <button class="btn btn-small primary" id="btn-rematch-yes">同意</button>
+          <button class="btn btn-small btn-ghost" id="btn-rematch-no">撤回</button>
+        </div>
+      </div>
+
+      <button class="btn btn-small btn-ghost" id="btn-force-restart">
+强制重开</button>
+    </div>
+  </section>
+
+  <!-- ========== 选择难度 ========== -->
+  <div class="modal-mask" id="difficulty-select">
+
+    <div class="modal">
+      <h2>选择 AI 难度</h2>
+      <div class="diff-list">
+        <button class="diff-btn" id="diff-easy">
+          <span class="diff-emoji">🌙</span>
+          <span class="diff-name">简单</span>
+          <span class="diff-desc">AI 会下棋，但常常疏忽</span>
+        </button>
+        <button class="diff-btn" id="diff-normal">
+          <span class="diff-emoji">⭐</span>
+          <span class="diff-name">正常</span>
+          <span class="diff-desc">懂得堵截与制造威胁</span>
+        </button>
+        <button class="diff-btn" id="diff-hard">
+          <span class="diff-emoji">💫</span>
+          <span class="diff-name">困难</span>
+          <span class="diff-desc">每一步都在算 5 步之后</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 加入房间对话框 ========== -->
+  <div class="modal-mask" id="join-dialog">
+
+    <div class="modal">
+      <h2>加入房间</h2>
+      <p class="hint">输入 6 位房间号，或粘贴完整链接</p>
+      <input id="join-input" class="input" maxlength="64" placeholder="例如: ABC123 或 https://.../r/ABC123" />
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-join-cancel">取消</button>
+        <button class="btn primary" id="btn-join-confirm">加入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 结果对话框 ========== -->
+  <div class="modal-mask result-mask" id="result-overlay">
+
+    <div class="result-modal">
+      <div class="result-title" id="result-title">你赢了！</div>
+      <div class="result-buttons">
+        <button class="btn primary" id="btn-result-exit">返回菜单</button>
+      </div>
+    </div>
+  </div>
+
+  
+<script>
+window.MOON_CHESS_STANDALONE = true;
+if (typeof window.io !== "function") {
+  window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
+}
+window.__moon_chess_showOnlineTip = function() {
+  var TIP_ID = '__mc_online_tip_v3__';
+  if (document.getElementById(TIP_ID)) return;
+  var wrap = document.createElement('div');
+  wrap.id = TIP_ID;
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+  var D = document.createElement.bind(document);
+  var dialog = document.createElement('div');
+  dialog.style.cssText = 'max-width:440px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
+  var h3 = document.createElement('h3');
+  h3.textContent = '联机对战提示';
+  h3.style.cssText = 'margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
+  var p = document.createElement('p');
+  p.innerHTML = '当前是纯静态分享版本，<b style="color:#4cc9f0">单机对战（含三档 AI、消失闪烁动画、重开退出、响应式）全部正常</b>。<br>联机对战（房间邀请制、实时同步）需要部署 Node WebSocket 服务端。';
+  p.style.cssText = 'color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
+  var pre = document.createElement('pre');
+  pre.style.cssText = 'background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px';
+  pre.textContent = '【推荐 Render.com 免费层一键部署】\n打开下方链接，用 GitHub 登录，一路 Next 即可：\nhttps://render.com/deploy?repo=https://github.com/Warpeas/moon-chess\n\n【Docker 自托管】\ndocker build -t moon-chess .\ndocker run -p 3000:3000 moon-chess';
+  var btn = document.createElement('button');
+  btn.textContent = '知道了';
+  btn.style.cssText = 'width:100%;padding:10px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
+  btn.onclick = function(){ wrap.remove(); };
+  dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
+  wrap.appendChild(dialog);
+  document.body.appendChild(wrap);
+};
+</script>
+  <script>
+// ===== moon-chess/ai =====
+// AI 算法 —— 井字棋 + 消失规则
+// 棋盘值: 0 空, 1 先手(玩家), 2 后手(AI 默认)
+// pieces: { 1: [{row,col},...], 2: [{row,col},...] }  FIFO 队列
+
+function cloneBoard(board) {
+  return board.map((r) => r.slice());
+}
+
+function clonePieces(pieces) {
+  return {
+    1: pieces[1].map((p) => ({ ...p })),
+    2: pieces[2].map((p) => ({ ...p })),
+  };
+}
+
+function checkWin(board) {
+  const lines = [
+    [[0,0],[0,1],[0,2]],[[1,0],[1,1],[1,2]],[[2,0],[2,1],[2,2]],
+    [[0,0],[1,0],[2,0]],[[0,1],[1,1],[2,1]],[[0,2],[1,2],[2,2]],
+    [[0,0],[1,1],[2,2]],[[0,2],[1,1],[2,0]],
+  ];
+  for (const line of lines) {
+    const [a,b,c] = line;
+    const v = board[a[0]][a[1]];
+    if (v !== 0 && v === board[b[0]][b[1]] && v === board[c[0]][c[1]]) return v;
+  }
+  return 0;
+}
+
+// 模拟一次落子，返回新的 { board, pieces, winner }
+function simulate(board, pieces, row, col, player) {
+  const nb = cloneBoard(board);
+  const np = clonePieces(pieces);
+  // ✅ 先移除该方最早的棋子（如果已有 3 颗）
+  if (np[player].length >= 3) {
+    const old = np[player].shift();
+    nb[old.row][old.col] = 0;
+  }
+  nb[row][col] = player;
+  np[player].push({ row, col });
+  return { board: nb, pieces: np, winner: checkWin(nb) };
+}
+
+function availableMoves(board) {
+  const moves = [];
+  for (let r = 0; r < 3; r++)
+    for (let c = 0; c < 3; c++)
+      if (board[r][c] === 0) moves.push({ row: r, col: c });
+  return moves;
+}
+
+// ========== 难度 1: 简单 ==========
+// 随机落子，但优先看是否能直接赢或必须堵对方
+function aiEasy(board, pieces, aiPlayer) {
+  const human = aiPlayer === 1 ? 2 : 1;
+  const moves = availableMoves(board);
+
+  // 先找能赢的
+  for (const m of moves) {
+    const res = simulate(board, pieces, m.row, m.col, aiPlayer);
+    if (res.winner === aiPlayer) return m;
+  }
+  // 再找必须堵的
+  for (const m of moves) {
+    const res = simulate(board, pieces, m.row, m.col, human);
+    if (res.winner === human) return m;
+  }
+  // 随机
+  return moves[Math.floor(Math.random() * moves.length)];
+}
+
+// ========== 难度 2: 正常 ==========
+// 带 2 步前瞻的 minimax，考虑消失机制
+function aiNormal(board, pieces, aiPlayer) {
+  const human = aiPlayer === 1 ? 2 : 1;
+  const moves = availableMoves(board);
+  if (moves.length === 0) return null;
+
+  // 立即赢
+  for (const m of moves) {
+    const res = simulate(board, pieces, m.row, m.col, aiPlayer);
+    if (res.winner === aiPlayer) return m;
+  }
+  // 堵对手立即赢
+  for (const m of moves) {
+    const res = simulate(board, pieces, m.row, m.col, human);
+    if (res.winner === human) return m;
+  }
+
+  // 2 层前瞻打分
+  let best = moves[0];
+  let bestScore = -Infinity;
+
+  for (const m of moves) {
+    const after = simulate(board, pieces, m.row, m.col, aiPlayer);
+    if (after.winner === aiPlayer) return m;
+
+    // 对手最好回应
+    let worst = -Infinity;
+    const enemyMoves = availableMoves(after.board);
+    for (const em of enemyMoves) {
+      const eAfter = simulate(after.board, after.pieces, em.row, em.col, human);
+      if (eAfter.winner === human) { worst = 100; break; }
+      if (eAfter.winner === aiPlayer) { worst = -100; continue; }
+      worst = Math.max(worst, 0); // 未知局面简化为 0
+    }
+    const score = -worst;
+    if (score > bestScore) { bestScore = score; best = m; }
+  }
+  return best;
+}
+
+// ========== 难度 3: 困难 ==========
+// 完整 minimax + alpha-beta 剪枝，深度 5
+function aiHard(board, pieces, aiPlayer, depth = 5) {
+  const human = aiPlayer === 1 ? 2 : 1;
+  const MAX_DEPTH = depth;
+
+  function evaluate(b) {
+    // 给局面打分: 看双方未来能形成的威胁
+    const win = checkWin(b);
+    if (win === aiPlayer) return 10000;
+    if (win === human) return -10000;
+    // 简单启发：中心 +2，角落 +1
+    let score = 0;
+    const center = b[1][1];
+    if (center === aiPlayer) score += 3;
+    if (center === human) score -= 3;
+    const corners = [[0,0],[0,2],[2,0],[2,2]];
+    for (const [r,c] of corners) {
+      if (b[r][c] === aiPlayer) score += 1;
+      if (b[r][c] === human) score -= 1;
+    }
+    return score;
+  }
+
+  function minimax(b, pcs, player, d, alpha, beta) {
+    const win = checkWin(b);
+    if (win !== 0) return win === aiPlayer ? 10000 - (MAX_DEPTH - d) : -10000 + (MAX_DEPTH - d);
+    if (d === 0) return evaluate(b);
+
+    const moves = availableMoves(b);
+    if (moves.length === 0) return evaluate(b);
+
+    if (player === aiPlayer) {
+      let best = -Infinity;
+      for (const m of moves) {
+        const after = simulate(b, pcs, m.row, m.col, player);
+        const v = minimax(after.board, after.pieces, human, d - 1, alpha, beta);
+        best = Math.max(best, v);
+        alpha = Math.max(alpha, v);
+        if (beta <= alpha) break;
+      }
+      return best;
+    } else {
+      let best = Infinity;
+      for (const m of moves) {
+        const after = simulate(b, pcs, m.row, m.col, player);
+        const v = minimax(after.board, after.pieces, aiPlayer, d - 1, alpha, beta);
+        best = Math.min(best, v);
+        beta = Math.min(beta, v);
+        if (beta <= alpha) break;
+      }
+      return best;
+    }
+  }
+
+  // 先看立即赢
+  const currentMoves = availableMoves(board);
+  for (const m of currentMoves) {
+    const after = simulate(board, pieces, m.row, m.col, aiPlayer);
+    if (after.winner === aiPlayer) return m;
+  }
+  // 堵立即输
+  for (const m of currentMoves) {
+    const after = simulate(board, pieces, m.row, m.col, human);
+    if (after.winner === human) return m;
+  }
+
+  let bestMove = currentMoves[0];
+  let bestScore = -Infinity;
+  // 加一点随机性避免完全可预测
+  const candidates = currentMoves.sort(() => Math.random() - 0.5).slice(0, Math.min(5, currentMoves.length));
+
+  for (const m of candidates) {
+    const after = simulate(board, pieces, m.row, m.col, aiPlayer);
+    const score = minimax(after.board, after.pieces, human, MAX_DEPTH - 1, -Infinity, Infinity);
+    if (score > bestScore) { bestScore = score; bestMove = m; }
+  }
+  return bestMove;
+}
+
+function aiMove(board, pieces, aiPlayer, difficulty) {
+  if (difficulty === 'easy') return aiEasy(board, pieces, aiPlayer);
+  if (difficulty === 'normal') return aiNormal(board, pieces, aiPlayer);
+  return aiHard(board, pieces, aiPlayer);
+}
+
+window.AI = { aiMove };
+
+</script>
+  <script>
+// ===== moon-chess/app =====
+// ======== 客户端游戏核心 ========
+
+const P1 = 1;
+const P2 = 2;
+
+class LocalGame {
+  constructor() {
+    this.reset();
+  }
+  reset() {
+    this.board = Array.from({ length: 3 }, () => Array(3).fill(0));
+    this.current = P1;
+    this.pieces = { 1: [], 2: [] };
+    this.status = 'playing';
+    this.winner = 0;
+    this.winLine = null;
+    this.pendingRemove = null;
+  }
+  place(row, col, player) {
+    if (this.status !== 'playing') return { ok: false };
+    if (player !== this.current) return { ok: false };
+    if (this.board[row][col] !== 0) return { ok: false };
+
+    let removed = null;
+    // ✅ 先移除该方最早的棋子（如果已有 3 颗）
+    if (this.pieces[player].length >= 3) {
+      const old = this.pieces[player].shift();
+      this.board[old.row][old.col] = 0;
+      removed = old;
+    }
+    // 再放下新的
+    this.board[row][col] = player;
+    this.pieces[player].push({ row, col });
+
+    const win = this._checkWin(this.board);
+    if (win.winner !== 0) {
+      this.status = 'ended';
+      this.winner = win.winner;
+      this.winLine = win.line;
+      this.pendingRemove = null;
+      return { ok: true, removed, winner: win.winner, winLine: win.line, pendingRemove: null, current: 0 };
+    }
+
+    const next = this.current === P1 ? P2 : P1;
+    // 预告刚下完子的玩家（player）最早的棋子，在对方的回合显示闪烁
+    if (this.pieces[player].length >= 3) {
+      const oldest = this.pieces[player][0];
+      this.pendingRemove = { player, row: oldest.row, col: oldest.col };
+    } else {
+      this.pendingRemove = null;
+    }
+    this.current = next;
+    return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
+  }
+  _checkWin(board) {
+    const lines = [
+      [[0,0],[0,1],[0,2]],[[1,0],[1,1],[1,2]],[[2,0],[2,1],[2,2]],
+      [[0,0],[1,0],[2,0]],[[0,1],[1,1],[2,1]],[[0,2],[1,2],[2,2]],
+      [[0,0],[1,1],[2,2]],[[0,2],[1,1],[2,0]],
+    ];
+    for (const line of lines) {
+      const [a,b,c] = line;
+      const v = board[a[0]][a[1]];
+      if (v !== 0 && v === board[b[0]][b[1]] && v === board[c[0]][c[1]]) return { winner: v, line };
+    }
+    return { winner: 0, line: null };
+  }
+  snapshot() {
+    return {
+      board: this.board.map((r) => r.slice()),
+      current: this.current,
+      status: this.status,
+      winner: this.winner,
+      winLine: this.winLine,
+      pendingRemove: this.pendingRemove,
+      pieces: { 1: this.pieces[1].map(p => ({...p})), 2: this.pieces[2].map(p => ({...p})) }
+    };
+  }
+}
+
+// ======== 应用控制器 ========
+
+const App = {
+  // 模式: menu | local | online
+  mode: 'menu',
+  local: null,
+  aiPlayer: P2,
+  difficulty: 'normal',
+
+  // 联机
+  socket: null,
+  roomCode: null,
+  mySeat: 1,
+  roomPlayers: [],
+  rematchVotes: { count: 0, needed: 0, mine: false },
+
+  // 渲染所需快照
+  state: null, // {board,current,status,winner,winLine,pendingRemove,pieces}
+
+  init() {
+    // 检查 URL 是否为房间链接
+    const path = location.pathname;
+    const m = path.match(/^\/r\/([A-Z0-9]{6})$/i);
+    if (m) {
+      this.roomCode = m[1].toUpperCase();
+      this.goOnline();
+    } else {
+      this.showMenu();
+    }
+
+    // 菜单按钮
+    document.getElementById('btn-local').addEventListener('click', () => this.showDifficultySelect());
+    document.getElementById('btn-online-create').addEventListener('click', () => this.createRoom());
+    document.getElementById('btn-online-join').addEventListener('click', () => this.showJoinDialog());
+
+    document.getElementById('diff-easy').addEventListener('click', () => this.startLocal('easy'));
+    document.getElementById('diff-normal').addEventListener('click', () => this.startLocal('normal'));
+    document.getElementById('diff-hard').addEventListener('click', () => this.startLocal('hard'));
+
+    // 对局界面按钮
+    document.getElementById('btn-restart').addEventListener('click', () => this.handleRestart());
+    document.getElementById('btn-exit').addEventListener('click', () => this.exitToMenu());
+
+    // 重开投票
+    document.getElementById('btn-rematch-yes').addEventListener('click', () => this.voteRematch(true));
+    document.getElementById('btn-rematch-no').addEventListener('click', () => this.voteRematch(false));
+    document.getElementById('btn-force-restart').addEventListener('click', () => this.handleRestart());
+
+    // 棋盘点击
+    document.querySelectorAll('.cell').forEach((el) => {
+      el.addEventListener('click', () => {
+        const row = parseInt(el.dataset.row);
+        const col = parseInt(el.dataset.col);
+        this.handleCellClick(row, col);
+      });
+    });
+
+    // 加入房间对话框
+    document.getElementById('btn-join-cancel').addEventListener('click', () => this.hideJoinDialog());
+    document.getElementById('btn-join-confirm').addEventListener('click', () => {
+      const val = document.getElementById('join-input').value;
+      if (!val.trim()) return;
+      if (this.socket) {
+        this.socket.emit('room:join', { roomCode: val });
+        this.hideJoinDialog();
+      }
+    });
+
+    // 游戏结果对话框 退出按钮
+    document.getElementById('btn-result-exit').addEventListener('click', () => {
+      document.getElementById('result-overlay').classList.remove('show');
+      this.exitToMenu();
+    });
+
+    window.addEventListener('resize', () => this.render());
+  },
+
+  showMenu() {
+    this.mode = 'menu';
+    document.getElementById('menu').classList.add('show');
+    document.getElementById('game').classList.remove('show');
+    document.getElementById('room-info').classList.remove('show');
+    document.getElementById('difficulty-select').classList.remove('show');
+    document.getElementById('result-overlay').classList.remove('show');
+    document.getElementById('rematch-bar').classList.remove('show');
+  },
+
+  showDifficultySelect() {
+    document.getElementById('difficulty-select').classList.add('show');
+  },
+
+  hideJoinDialog() {
+    document.getElementById('join-dialog').classList.remove('show');
+  },
+
+  showJoinDialog() {
+    this.goOnline();
+  },
+
+  startLocal(difficulty) {
+    this.difficulty = difficulty;
+    this.mode = 'local';
+    this.local = new LocalGame();
+    this.state = this.local.snapshot();
+    document.getElementById('menu').classList.remove('show');
+    document.getElementById('difficulty-select').classList.remove('show');
+    document.getElementById('game').classList.add('show');
+    document.getElementById('room-info').classList.remove('show');
+    this.hideDialogs();
+    this.render();
+  },
+
+  hideDialogs() {
+    document.getElementById('difficulty-select').classList.remove('show');
+    document.getElementById('join-dialog').classList.remove('show');
+  },
+
+  // ======== 联机 ========
+  goOnline() {
+    if (window.MOON_CHESS_STANDALONE) { window.__moon_chess_showOnlineTip(); return; }
+
+    this.mode = 'online';
+    if (!this.socket) {
+      this.socket = io();
+      this.setupSocket();
+    }
+    document.getElementById('menu').classList.remove('show');
+    document.getElementById('game').classList.add('show');
+    document.getElementById('room-info').classList.add('show');
+    document.getElementById('room-info').classList.add('show');
+
+    if (this.roomCode) {
+      // URL 带房间号
+      this.socket.emit('room:join', { roomCode: this.roomCode });
+    }
+  },
+
+  createRoom() {
+    this.goOnline();
+  },
+
+  setupSocket() {
+    const s = this.socket;
+
+    s.on('room:created', (data) => {
+      this.roomCode = data.roomCode;
+      this.mySeat = data.seat;
+      this.roomPlayers = data.players;
+      history.replaceState(null, '', `/r/${this.roomCode}`);
+      this.updateRoomUI(data);
+      this.state = data.game;
+      this.render();
+    });
+
+    s.on('room:joined', (data) => {
+      this.roomCode = data.roomCode;
+      this.mySeat = data.seat;
+      this.roomPlayers = data.players;
+      history.replaceState(null, '', `/r/${this.roomCode}`);
+      this.updateRoomUI(data);
+      this.state = data.game;
+      this.render();
+    });
+
+    s.on('room:update', (data) => {
+      this.roomPlayers = data.players;
+      if (data.game) this.state = data.game;
+      this.updateRoomUI(data);
+      this.render();
+    });
+
+    s.on('room:error', ({ message }) => {
+      alert(message);
+      this.exitToMenu();
+    });
+
+    s.on('room:playerLeft', () => {
+      this.updateRoomUI({});
+    });
+
+    s.on('game:update', (data) => {
+      this.state = { ...this.state, ...data };
+      // 也更新 pieces 便于闪烁预告判断
+      if (data.current !== undefined) this.state.current = data.current;
+      if (data.pendingRemove !== undefined) this.state.pendingRemove = data.pendingRemove;
+      if (data.status !== undefined) this.state.status = data.status;
+      if (data.winner !== undefined) this.state.winner = data.winner;
+      if (data.winLine !== undefined) this.state.winLine = data.winLine;
+
+      // 更新 pieces 映射：前端重建
+      this.rebuildPiecesFromBoard();
+      this.render();
+
+      // AI 回合（联机不需要）
+    });
+
+    s.on('game:rematchUpdate', (data) => {
+      this.rematchVotes.count = data.votes;
+      this.rematchVotes.needed = data.needed;
+      this.renderResult();
+    });
+
+    s.on('game:restarted', ({ game }) => {
+      this.state = game;
+      this.rebuildPiecesFromBoard();
+      document.getElementById('result-overlay').classList.remove('show');
+      this.render();
+    });
+
+    s.on('game:error', ({ reason }) => {
+      console.warn('game error:', reason);
+    });
+  },
+
+  // 从 board + pendingRemove 重建 pieces 队列（联机同步时可用）
+  rebuildPiecesFromBoard() {
+    if (!this.state) return;
+    // 联机时 pieces 信息会跟落子事件一起过去，但为了稳妥，这里从 board 重新生成（不含顺序，仅用于渲染）
+    // 真实队列由服务端维护，客户端仅需 board 和 pendingRemove 即可渲染
+    if (!this.state.pieces) {
+      this.state.pieces = { 1: [], 2: [] };
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 3; c++) {
+          const v = this.state.board[r][c];
+          if (v !== 0) this.state.pieces[v].push({ row: r, col: c });
+        }
+      }
+    }
+  },
+
+  updateRoomUI(data) {
+    const info = document.getElementById('room-info');
+    if (this.mode !== 'online') { info.classList.remove('show'); return; }
+    info.classList.add('show');
+    document.getElementById('room-code').textContent = this.roomCode || '--';
+    const url = location.origin + '/r/' + (this.roomCode || '');
+    document.getElementById('room-link').textContent = url;
+    document.getElementById('room-link').href = url;
+
+    const hostSeat = (this.mySeat === 1);
+    const forceRestart = document.getElementById('btn-force-restart');
+    forceRestart.classList.toggle('show', !!(hostSeat && this.state && this.state.status === 'ended'));
+
+    // 复制链接
+    const copyBtn = document.getElementById('btn-copy');
+    copyBtn.onclick = () => {
+      navigator.clipboard?.writeText(url).then(() => {
+        copyBtn.textContent = '已复制 ✓';
+        setTimeout(() => copyBtn.textContent = '复制', 1500);
+      });
+    };
+  },
+
+  // ======== 点击处理 ========
+  handleCellClick(row, col) {
+    if (!this.state || this.state.status !== 'playing') return;
+
+    if (this.mode === 'local') {
+      // 本地模式：玩家固定 P1，AI 为 P2
+      if (this.state.current !== P1) return;
+      const res = this.local.place(row, col, P1);
+      if (!res.ok) return;
+      this.state = this.local.snapshot();
+      this.render();
+      // AI 自动下
+      if (this.state.status === 'playing' && this.state.current === P2) {
+        setTimeout(() => {
+          const move = AI.aiMove(this.local.board, this.local.pieces, P2, this.difficulty);
+          if (move) {
+            this.local.place(move.row, move.col, P2);
+            this.state = this.local.snapshot();
+            this.render();
+          }
+        }, 450);
+      }
+    } else if (this.mode === 'online') {
+      if (this.state.current !== this.mySeat) return;
+      const seat = this.mySeat;
+      // 本地预判一下（优化体验）
+      this.socket.emit('game:place', { roomCode: this.roomCode, row, col, seat });
+    }
+  },
+
+  handleRestart() {
+    if (this.mode === 'local') {
+      this.local.reset();
+      this.state = this.local.snapshot();
+      this.render();
+    } else if (this.mode === 'online') {
+      // 联机：主机才能直接重开，其他人发起投票
+      if (this.mySeat === 1) {
+        this.socket.emit('game:restart', { roomCode: this.roomCode });
+      } else {
+        // 发起投票也用 rematch
+        this.voteRematch(true);
+      }
+    }
+  },
+
+  exitToMenu() {
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+    }
+    this.roomCode = null;
+    history.replaceState(null, '', '/');
+    this.showMenu();
+  },
+
+  voteRematch(vote) {
+    if (this.mode !== 'online' || !this.socket) return;
+    this.socket.emit('game:rematch', { roomCode: this.roomCode, vote });
+    this.rematchVotes.mine = vote;
+  },
+
+  // ======== 渲染 ========
+  render() {
+    if (!this.state) return;
+    // 棋盘
+    document.querySelectorAll('.cell').forEach((el) => {
+      const row = parseInt(el.dataset.row);
+      const col = parseInt(el.dataset.col);
+      const v = this.state.board[row][col];
+      el.className = 'cell';
+      el.innerHTML = '';
+
+      if (v !== 0) {
+        const piece = document.createElement('div');
+        piece.className = 'piece p' + v;
+
+        // 如果是下一个要消失的棋子（预告闪烁）
+        const pr = this.state.pendingRemove;
+        // 规则：当前轮次轮到谁，预告的是对方的棋子
+        // 当前回合玩家是 current
+        // pendingRemove 是 current 下一个回合之前要消失的（即 current 自己最老的）
+        // 在本回合，pendingRemove.player 可能等于 current
+        if (pr && pr.row === row && pr.col === col) {
+          piece.classList.add('fading');
+        }
+
+        // 刚被放置的动效：给一个 key 触发
+        // 简化：加 drop 类，由 JS 重新添加触发动画
+        piece.classList.add('drop');
+        requestAnimationFrame(() => piece.classList.remove('drop'));
+
+        // 宝石 SVG
+        piece.innerHTML = this._gemSVG(v);
+        el.appendChild(piece);
+      }
+    });
+
+    // 高亮赢线
+    const winLine = this.state.winLine;
+    document.querySelectorAll('.cell').forEach((el) => el.classList.remove('win'));
+    if (winLine && this.state.status === 'ended') {
+      for (const [r, c] of winLine) {
+        const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+        if (cell) cell.classList.add('win');
+      }
+    }
+
+    // 顶部信息：当前轮到谁
+    this.renderTurnIndicator();
+
+    // 结束对话框
+    if (this.state.status === 'ended') {
+      this.renderResult();
+    } else {
+      document.getElementById('result-overlay').classList.remove('show');
+      document.getElementById('rematch-bar').classList.remove('show');
+    }
+
+    // 联机信息
+    if (this.mode === 'online') {
+      this.updateRoomUI({});
+    }
+  },
+
+  renderTurnIndicator() {
+    const el = document.getElementById('turn-indicator');
+    if (!this.state) return;
+    if (this.state.status === 'ended') {
+      el.textContent = '对局结束';
+      return;
+    }
+    let cur = this.state.current;
+    let label;
+    if (this.mode === 'local') {
+      label = cur === P1 ? '你的回合' : 'AI 思考中…';
+    } else if (this.mode === 'online') {
+      label = cur === this.mySeat ? '你的回合' : '对方回合';
+    } else {
+      label = cur === P1 ? '玩家 1 回合' : '玩家 2 回合';
+    }
+    el.textContent = label;
+    el.className = cur === P1 ? 'p1' : 'p2';
+  },
+
+  renderResult() {
+    const overlay = document.getElementById('result-overlay');
+    overlay.classList.add('show');
+    let winner = this.state.winner;
+    let title;
+    if (this.mode === 'local') {
+      if (winner === 0) title = '平局！';
+      else if (winner === P1) title = '你赢了！ 🎉';
+      else title = 'AI 获胜';
+    } else if (this.mode === 'online') {
+      if (winner === 0) title = '平局！';
+      else if (winner === this.mySeat) title = '你赢了！ 🎉';
+      else title = '对手获胜';
+    } else {
+      title = winner === 0 ? '平局' : `玩家 ${winner} 获胜`;
+    }
+    document.getElementById('result-title').textContent = title;
+
+    // 联机时显示重开投票栏
+    if (this.mode === 'online') {
+      document.getElementById('rematch-bar').classList.add('show');
+      document.getElementById('rematch-count').textContent =
+        `${this.rematchVotes.count}/${this.rematchVotes.needed} 已同意`;
+      document.getElementById('btn-rematch-yes').disabled = this.rematchVotes.mine;
+    } else {
+      document.getElementById('rematch-bar').classList.remove('show');
+    }
+  },
+
+  _gemSVG(player) {
+    // P1 粉紫渐变，P2 蓝紫渐变（参考原神月亮棋色调）
+    if (player === 1) {
+      return `<svg viewBox="0 0 100 100" class="gem"><defs>
+        <radialGradient id="g1" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+          <stop offset="35%" stop-color="#ffd8f0" stop-opacity="0.95"/>
+          <stop offset="70%" stop-color="#c77dff"/>
+          <stop offset="100%" stop-color="#5a189a"/>
+        </radialGradient>
+        <filter id="glow1"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#g1)" filter="url(#glow1)" stroke="#fff" stroke-opacity="0.3"/>
+      <polygon points="50,8 70,30 50,50 30,30" fill="#ffffff" fill-opacity="0.25"/>
+    </svg>`;
+    } else {
+      return `<svg viewBox="0 0 100 100" class="gem"><defs>
+        <radialGradient id="g2" cx="50%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
+          <stop offset="35%" stop-color="#c8b6ff" stop-opacity="0.95"/>
+          <stop offset="70%" stop-color="#7b2cbf"/>
+          <stop offset="100%" stop-color="#240046"/>
+        </radialGradient>
+        <filter id="glow2"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#g2)" filter="url(#glow2)" stroke="#a0c4ff" stroke-opacity="0.4"/>
+      <polygon points="50,8 70,30 50,50 30,30" fill="#e0fbff" fill-opacity="0.25"/>
+    </svg>`;
+    }
+  },
+};
+
+document.addEventListener('DOMContentLoaded', () => App.init());
+
+</script>
+</body>
+</html>
