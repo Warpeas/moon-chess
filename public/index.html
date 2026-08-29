@@ -146,6 +146,29 @@
     </div>
   </div>
 
+  <!-- ========== 选择执白 / 执黑（先后手） ========== -->
+  <div class="modal-mask" id="side-select">
+    <div class="modal">
+      <h2>选择先后手</h2>
+      <p class="hint">先手：白子，开局先行；后手：黑子，AI 先行。双方颜色明显不同。</p>
+      <div class="diff-list">
+        <button class="diff-btn" id="side-white">
+          <span class="diff-emoji">⚪</span>
+          <span class="diff-name">执白（先手）</span>
+          <span class="diff-desc">你用白子，开局第一步由你下</span>
+        </button>
+        <button class="diff-btn" id="side-black">
+          <span class="diff-emoji">⚫</span>
+          <span class="diff-name">执黑（后手）</span>
+          <span class="diff-desc">你用黑子，开局由 AI 先走白棋</span>
+        </button>
+      </div>
+      <div class="modal-actions" style="justify-content:center">
+        <button class="btn btn-ghost" id="side-back">← 返回选择难度</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== 加入房间对话框 ========== -->
   <div class="modal-mask" id="join-dialog">
 

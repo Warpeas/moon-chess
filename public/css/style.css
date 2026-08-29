@@ -292,15 +292,18 @@ body::after {
 }
 
 .turn-indicator {
-  font-size: 16px; letter-spacing: 2px;
+  font-size: 16px; letter-spacing: 1px;
   padding: 10px 18px;
   border-radius: 999px;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.1);
   backdrop-filter: blur(8px);
 }
-.turn-indicator.p1 { color: var(--accent-3); text-shadow: 0 0 8px rgba(199,125,255,0.6); }
-.turn-indicator.p2 { color: var(--cool-blue); text-shadow: 0 0 8px rgba(76,201,240,0.6); }
+.turn-indicator.white { color: #fff9f2; text-shadow: 0 0 8px rgba(255,240,210,0.65); }
+.turn-indicator.black { color: #d7dce8; text-shadow: 0 0 8px rgba(154,163,184,0.55); }
+/* 兼容保留 p1/p2 */
+.turn-indicator.p1 { color: #fff9f2; text-shadow: 0 0 8px rgba(255,240,210,0.65); }
+.turn-indicator.p2 { color: #d7dce8; text-shadow: 0 0 8px rgba(154,163,184,0.55); }
 
 .game-actions { display: flex; gap: 8px; }
 
@@ -480,6 +483,7 @@ body::after {
 .confirm-mask .confirm-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
 .confirm-title { font-size: 18px; letter-spacing: 2px; margin-bottom: 6px; }
 .confirm-desc { color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+.confirm-desc:empty { display: none; }
 
 /* 思考标签（在 turn-indicator 右侧补一小点动态） */
 .turn-indicator .thinking-dot {
@@ -508,13 +512,43 @@ body::after {
 .piece.p1 .gem { animation: pulseP1 2.2s ease-in-out infinite; }
 .piece.p2 .gem { animation: pulseP2 2.4s ease-in-out infinite; }
 
+/* P1 = 白方：暖白珠光脉冲辉光 */
 @keyframes pulseP1 {
-  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 6px rgba(199,125,255,0.3)); }
-  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 14px rgba(199,125,255,0.65)); }
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.55)) drop-shadow(0 0 6px rgba(255,240,210,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 16px rgba(255,236,180,0.8)); }
 }
+/* P2 = 黑方：深墨磨砂边 + 冷银光呼吸 */
 @keyframes pulseP2 {
-  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5)) drop-shadow(0 0 6px rgba(76,201,240,0.3)); }
-  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 14px rgba(76,201,240,0.65)); }
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 4px rgba(154,163,184,0.3)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 10px rgba(190,200,220,0.6)); }
+}
+
+/* ========== AI 思考候选红圈（2-3 个位置循环切换高亮） ========== */
+.cell .think-candidate {
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 70, 90, 0.35);
+  pointer-events: none;
+  transition: all 0.25s ease;
+}
+.cell .think-candidate.dim {
+  opacity: 0.28;
+  transform: scale(0.82);
+  border-color: rgba(255, 70, 90, 0.28);
+}
+.cell .think-candidate.active {
+  opacity: 1;
+  transform: scale(1.02);
+  border-color: rgba(255, 70, 90, 0.9);
+  box-shadow:
+    0 0 14px rgba(255, 70, 90, 0.5),
+    inset 0 0 10px rgba(255, 70, 90, 0.28);
+  animation: candidatePulse 0.9s ease-in-out infinite;
+}
+@keyframes candidatePulse {
+  0%,100% { transform: scale(1.02); opacity: 0.9; }
+  50%     { transform: scale(1.12); opacity: 1;   }
 }
 
 /* 落子动效 */

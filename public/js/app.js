@@ -1,7 +1,15 @@
 // ======== 客户端游戏核心 ========
+// P1 = WHITE 先手（白方），P2 = BLACK 后手（黑方）
+const WHITE = 1;
+const BLACK = 2;
+const P1 = WHITE;
+const P2 = BLACK;
 
-const P1 = 1;
-const P2 = 2;
+function sideOf(player) { return player === WHITE ? 'white' : 'black'; }
+function sideLabel(side) { return side === 'white' ? '白方' : '黑方'; }
+function mySideLabel(playerSide) {
+  return playerSide === 'white' ? '你执白（先手）' : '你执黑（后手）';
+}
 
 class LocalGame {
   constructor() {
@@ -40,13 +48,15 @@ class LocalGame {
     }
 
     const next = this.current === P1 ? P2 : P1;
-    if (this.pieces[player].length >= 3) {
-      const oldest = this.pieces[player][0];
-      this.pendingRemove = { player, row: oldest.row, col: oldest.col };
+    this.current = next;
+    // ✅ pendingRemove 必须基于「接下来要落子的人」计算（而非上一手玩家）
+    // 轮到 B 走，如果 B 已经有 3 颗，则提示 B 自己最早那颗下次会消失
+    if (this.pieces[next].length >= 3) {
+      const oldest = this.pieces[next][0];
+      this.pendingRemove = { player: next, row: oldest.row, col: oldest.col };
     } else {
       this.pendingRemove = null;
     }
-    this.current = next;
     return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
   }
   _checkWin(board) {
@@ -81,7 +91,7 @@ const App = {
   // 模式: menu | local | online
   mode: 'menu',
   local: null,
-  aiPlayer: P2,
+  playerSide: 'white',          // 'white' | 'black' — 玩家选哪一方
   difficulty: 'normal',
 
   // 联机
@@ -92,12 +102,11 @@ const App = {
   // rematch: { status: 'none'|'pending'|'accepted'|'rejected', guestResponse: null|true|false }
   rematch: { status: 'none', byHost: false, guestResponse: null },
 
-  // AI 调度：延迟时间 & 预选落子（预览）
+  // AI 调度：延迟时间 & 思考候选红圈（2-3 个位置循环切换）
   aiTimer: null,
-  aiPreview: null, // {row, col, player}
-
-  // 上一手落子（渲染成高亮光圈）
-  lastMove: null,
+  aiCandidatesTimer: null,
+  aiCandidates: [],          // [{row,col}, ...]
+  aiCandidatesActiveIdx: 0,
 
   // 渲染所需快照
   state: null,
@@ -118,9 +127,14 @@ const App = {
     safeGet('btn-online-create')?.addEventListener('click', () => this.createRoom());
     safeGet('btn-online-join')?.addEventListener('click', () => this.showJoinDialog());
 
-    safeGet('diff-easy')?.addEventListener('click', () => this.startLocal('easy'));
-    safeGet('diff-normal')?.addEventListener('click', () => this.startLocal('normal'));
-    safeGet('diff-hard')?.addEventListener('click', () => this.startLocal('hard'));
+    safeGet('diff-easy')?.addEventListener('click', () => this._onDiffPicked('easy'));
+    safeGet('diff-normal')?.addEventListener('click', () => this._onDiffPicked('normal'));
+    safeGet('diff-hard')?.addEventListener('click', () => this._onDiffPicked('hard'));
+
+    // 执白/执黑选择
+    safeGet('side-white')?.addEventListener('click', () => this._onSidePicked('white'));
+    safeGet('side-black')?.addEventListener('click', () => this._onSidePicked('black'));
+    safeGet('side-back')?.addEventListener('click', () => this.backToDifficultyFromSide());
 
     // 对局界面按钮
     safeGet('btn-restart')?.addEventListener('click', () => this.handleRestart());
@@ -161,11 +175,28 @@ const App = {
     window.addEventListener('resize', () => this.render());
   },
 
+  _onDiffPicked(difficulty) {
+    this.difficulty = difficulty;
+    safeGet('difficulty-select')?.classList.remove('show');
+    this.showSideSelect();
+  },
+  backToDifficultyFromSide() {
+    safeGet('side-select')?.classList.remove('show');
+    safeGet('difficulty-select')?.classList.add('show');
+  },
+  _onSidePicked(side) {
+    safeGet('side-select')?.classList.remove('show');
+    this.startLocal(this.difficulty, side);
+  },
+
   // ==================== 通用工具 ====================
   showConfirm({ title, desc, onYes }) {
     const dlg = safeGet('confirm-dialog');
     safeGet('confirm-title').textContent = title || '确认操作';
-    safeGet('confirm-desc').textContent  = desc  || '';
+    const descEl = safeGet('confirm-desc');
+    const descText = desc  || '';
+    descEl.textContent = descText;
+    descEl.style.display = descText === '' ? 'none' : '';
     this._confirmCallback = onYes || null;
     dlg.hidden = false;
     dlg.classList.add('show');
@@ -199,12 +230,13 @@ const App = {
   showMenu() {
     this.mode = 'menu';
     this.clearAiTimer(true);
-    this.aiPreview = null;
-    this.lastMove = null;
+    this.aiCandidates = [];
+    this.stopAiCandidateCycle();
     safeGet('menu')?.classList.add('show');
     safeGet('game')?.classList.remove('show');
     safeGet('room-info')?.classList.remove('show');
     safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('side-select')?.classList.remove('show');
     const dlg = safeGet('result-overlay'); if (dlg) dlg.classList.remove('show');
     this.hideRematchBar();
     this.hideEndBanner();
@@ -214,6 +246,9 @@ const App = {
 
   showDifficultySelect() {
     safeGet('difficulty-select')?.classList.add('show');
+  },
+  showSideSelect() {
+    safeGet('side-select')?.classList.add('show');
   },
   hideJoinDialog() {
     safeGet('join-dialog')?.classList.remove('show');
@@ -230,17 +265,21 @@ const App = {
     setTimeout(() => inp.focus(), 50);
   },
 
-  startLocal(difficulty) {
+  startLocal(difficulty, side) {
     this.difficulty = difficulty;
+    this.playerSide = side || 'white';
+    const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+    const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
     this.mode = 'local';
     this.local = new LocalGame();
     this.state = this.local.snapshot();
     this.clearAiTimer(true);
-    this.aiPreview = null;
-    this.lastMove = null;
+    this.aiCandidates = [];
+    this.stopAiCandidateCycle();
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
     safeGet('menu')?.classList.remove('show');
     safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('side-select')?.classList.remove('show');
     safeGet('game')?.classList.add('show');
     safeGet('room-info')?.classList.remove('show');
     this.hideDialogs();
@@ -249,10 +288,16 @@ const App = {
     this.setBoardDisabled(false);
     this.updateRestartButton();
     this.render();
+
+    // 如果玩家选执黑（AI 执白先手 = WHITE），则开局 AI 自动走
+    if (this.state.status === 'playing' && this.state.current === aiPlayer) {
+      this.scheduleAiMove(aiPlayer);
+    }
   },
 
   hideDialogs() {
     safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('side-select')?.classList.remove('show');
     safeGet('join-dialog')?.classList.remove('show');
   },
 
@@ -263,8 +308,10 @@ const App = {
   },
   showEndBanner(title, cls) {
     const banner = safeGet('end-banner'); if (!banner) return;
+    // Banner 不再显示胜负文案（已经改由 turn-indicator 承担），
+    // 但保留 class 接口兼容，title 可传空。
     const t = safeGet('end-title');
-    t.textContent = title || '';
+    t.textContent = '';   // 不写"AI获胜"那一行
     t.classList.remove('win','lose','draw');
     if (cls) t.classList.add(cls);
     banner.hidden = false;
@@ -278,7 +325,34 @@ const App = {
 
   clearAiTimer(alsoCancelPreview) {
     if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
-    if (alsoCancelPreview) this.aiPreview = null;
+  },
+  stopAiCandidateCycle() {
+    if (this.aiCandidatesTimer) { clearInterval(this.aiCandidatesTimer); this.aiCandidatesTimer = null; }
+    this.aiCandidates = [];
+    this.aiCandidatesActiveIdx = 0;
+  },
+  startAiCandidateCycle(boardArr, totalDelay) {
+    // 从所有空格挑 2-3 个候选位置，循环切换红圈
+    const empties = [];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (boardArr[r][c] === 0) empties.push([r, c]);
+    if (empties.length === 0) return;
+    // Fisher-Yates 取前 2-3 个
+    for (let i = empties.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [empties[i], empties[j]] = [empties[j], empties[i]];
+    }
+    const n = Math.max(2, Math.min(3, empties.length));
+    // 统一存储为字符串，便于 render 内的 indexOf 匹配
+    this.aiCandidates = empties.slice(0, n).map(([r, c]) => `${r}-${c}`);
+    this.aiCandidatesActiveIdx = 0;
+
+    // 候选切换周期：使总周期大概轮换 3-6 次 depending on total delay
+    const cyclePeriod = Math.max(240, Math.min(520, Math.floor(totalDelay / 6)));
+    this.render();
+    this.aiCandidatesTimer = setInterval(() => {
+      this.aiCandidatesActiveIdx = (this.aiCandidatesActiveIdx + 1) % this.aiCandidates.length;
+      this.render();
+    }, cyclePeriod);
   },
 
   // ==================== 联机 ====================
@@ -289,8 +363,9 @@ const App = {
       return;
     }
     this.mode = 'online';
+    this.playerSide = (this.mySeat === 1) ? 'white' : 'black';
     this.clearAiTimer(true);
-    this.lastMove = null;
+    this.stopAiCandidateCycle();
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
     this.hideEndBanner();
     if (!this.socket) {
@@ -311,7 +386,7 @@ const App = {
 
   createRoom() {
     this.goOnline();
-    this.socket.emit('room:create');
+    if (this.socket) this.socket.emit('room:create');
   },
 
   setupSocket() {
@@ -373,10 +448,7 @@ const App = {
       if (data.status !== undefined) this.state.status = data.status;
       if (data.winner !== undefined) this.state.winner = data.winner;
       if (data.winLine !== undefined) this.state.winLine = data.winLine;
-      // 记录 lastMove（落子者通过 seat + data.row/col 推不出 seat，这里仅服务端可提供；保守起见在联机模式下我们拿 data.row/col 当作上一手）
-      if (typeof data.row === 'number' && typeof data.col === 'number') {
-        this.lastMove = { row: data.row, col: data.col };
-      }
+      // 不再渲染 last-move 光圈（用户要求去掉蓝框）
       if (data.status === 'playing') {
         this.rematch = { status: 'none', byHost: false, guestResponse: null };
         this.hideRematchBar();
@@ -401,7 +473,6 @@ const App = {
       this.hideEndBanner();
       this.hideRematchBar();
       this.setBoardDisabled(false);
-      this.lastMove = null;
       this.updateRestartButton();
       this.render();
     });
@@ -555,20 +626,21 @@ const App = {
     if (!this.state || this.state.status !== 'playing') return;
 
     if (this.mode === 'local') {
-      if (this.state.current !== P1) return;     // 不是玩家回合
+      const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+      const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
+      if (this.state.current !== humanPlayer) return;
       if (this.aiTimer) return;                    // AI 思考中，点不了
       if (this.local.board[row][col] !== 0) return;
-      // 落子前记下玩家将导致哪颗棋子消失，用于渲染更显眼的 pendingRemove
-      const res = this.local.place(row, col, P1);
+      const res = this.local.place(row, col, humanPlayer);
       if (!res.ok) return;
-      this.lastMove = { row, col, player: P1 };
       this.state = this.local.snapshot();
       this.updateRestartButton();
       this.render();
 
-      // AI 自动下（分阶段：思考延迟 + 预览 + 再落子）
-      if (this.state.status === 'playing' && this.state.current === P2) {
-        this.scheduleAiMove();
+      // AI 自动下（候选红圈动画 + 慢速落子）—— 推迟到下一帧，保证首帧渲染就绪
+      if (this.state.status === 'playing' && this.state.current === aiPlayer) {
+        const aiRef = aiPlayer;
+        setTimeout(() => this.scheduleAiMove(aiRef), 60);
       }
       return;
     }
@@ -576,70 +648,75 @@ const App = {
     if (this.mode === 'online') {
       if (this.state.current !== this.mySeat) return;
       if (this.state.board[row][col] !== 0) return;
-      this.lastMove = { row, col, player: this.mySeat };
       this.socket.emit('game:place', { roomCode: this.roomCode, row, col, seat: this.mySeat });
     }
   },
 
-  scheduleAiMove() {
+  scheduleAiMove(aiPlayerNum) {
     this.clearAiTimer(false);
-    this.aiPreview = null;
+    this.stopAiCandidateCycle();
     this.setBoardDisabled(true);
-    this.render();
 
-    // 难度基础延迟 + 随机，让玩家看清"AI 预选"
-    // easy  慢  1200 ~ 2100ms
-    // normal     900 ~ 1700ms
-    // hard       700 ~ 1300ms（但仍然能看清）
     const base = { easy: 1600, normal: 1250, hard: 950 }[this.difficulty] || 1200;
     const jitter = Math.floor(Math.random() * 700);
     const totalDelay = base + jitter;
+    // 在 ~45% 时间点真正计算 AI 最佳着；在此之前先跑 2-3 候选红圈动画
+    const computeDelay = Math.floor(totalDelay * (0.4 + Math.random() * 0.15));
+    const placeDelay   = totalDelay - computeDelay;
 
-    // 先在约 35%~55% 时间点计算预选位置并展示 preview（让用户看到"AI 已经想好"）
-    const previewDelay = Math.floor(totalDelay * (0.35 + Math.random() * 0.2));
-    const placeDelay = totalDelay - previewDelay;
+    // 启动 AI 候选红圈循环（2-3 个位置动画切换）
+    this.startAiCandidateCycle(this.local.board, totalDelay);
+    this.render();
 
     this.aiTimer = setTimeout(() => {
-      const move = AI.aiMove(this.local.board, this.local.pieces, P2, this.difficulty);
+      const move = AI.aiMove(this.local.board, this.local.pieces, aiPlayerNum, this.difficulty);
       if (!move) {
         this.clearAiTimer(true);
+        this.stopAiCandidateCycle();
         this.setBoardDisabled(false);
         this.render();
         return;
       }
-      this.aiPreview = { row: move.row, col: move.col, player: P2 };
-      this.render();
+      // 计算完之后仍保持红圈动画一小会（placeDelay）再落子
       this.aiTimer = setTimeout(() => {
-        this.local.place(move.row, move.col, P2);
-        this.lastMove = { row: move.row, col: move.col, player: P2 };
-        this.aiPreview = null;
+        this.stopAiCandidateCycle();
+        this.local.place(move.row, move.col, aiPlayerNum);
         this.aiTimer = null;
         this.state = this.local.snapshot();
         this.setBoardDisabled(false);
         this.updateRestartButton();
         this.render();
+        const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+        // 如果玩家还没获胜/平局，且又轮到玩家，就不再触发 AI
+        // 如果游戏结束则 banner 会显示；如果再继续轮到 AI（极端 case），手动触发：
+        if (this.state.status === 'playing' && this.state.current !== humanPlayer) {
+          this.scheduleAiMove(this.state.current);
+        }
       }, placeDelay);
-    }, previewDelay);
+    }, computeDelay);
   },
 
   // 顶部重开 / 结束横幅「再来一局」共用
   handleRestart() {
     if (this.mode === 'local') {
-      // 单机：先确认
-      const isEnded = this.state && this.state.status === 'ended';
-      const title = isEnded ? '再来一局？' : '确认重新开始？';
-      const desc  = isEnded ? '当前对局的胜败结果会被清空，开始新的一局吗？' : '当前局的进度会被清空，确定要开始新的一局吗？';
+      // 只要一个标题"再开一局"，去掉描述句子
       this.showConfirm({
-        title, desc,
+        title: '再开一局',
+        desc: '',
         onYes: () => {
           this.clearAiTimer(true);
-          this.lastMove = null;
+          this.stopAiCandidateCycle();
           this.local.reset();
           this.state = this.local.snapshot();
           this.hideEndBanner();
           this.setBoardDisabled(false);
           this.updateRestartButton();
           this.render();
+          // 玩家选执黑先手时，开局由 AI 执白先走
+          const aiPlayer = (this.playerSide === 'white') ? BLACK : WHITE;
+          if (this.state.status === 'playing' && this.state.current === aiPlayer) {
+            this.scheduleAiMove(aiPlayer);
+          }
         }
       });
       return;
@@ -658,8 +735,6 @@ const App = {
     const isHost = (this.mySeat === 1);
     if (isHost) {
       if (action === 'cancel') {
-        // 如果目前是 rejected 状态，no 按钮绑定已经改成"重新发起"→ 不经过这里，直接 handleRestart。
-        // 正常 pending 时：撤回
         this.socket.emit('game:rematch', { roomCode: this.roomCode, cancel: true });
       }
     } else {
@@ -675,6 +750,7 @@ const App = {
     }
     this.roomCode = null;
     this.clearAiTimer(true);
+    this.stopAiCandidateCycle();
     history.replaceState(null, '', '/');
     this.showMenu();
   },
@@ -698,32 +774,29 @@ const App = {
 
       if (v !== 0) {
         const piece = document.createElement('div');
+        // p1 = white, p2 = black 对应 CSS 颜色
         piece.className = 'piece p' + v;
-        const pr = this.state.pendingRemove;
-        if (pr && pr.row === row && pr.col === col) {
-          piece.classList.add('fading');
-          el.classList.add('marked-to-remove');
-        }
+        // 不再做 pendingRemove 红框 / fading 闪烁 / last-move 蓝框
         piece.classList.add('drop');
         requestAnimationFrame(() => piece.classList.remove('drop'));
         piece.innerHTML = this._gemSVG(v);
         el.appendChild(piece);
       } else {
-        // 空格：AI 思考时显示预选位置
-        if (this.mode === 'local' && this.aiPreview && this.aiPreview.row === row && this.aiPreview.col === col) {
-          const pv = document.createElement('div');
-          pv.className = 'preview-move ' + (this.aiPreview.player === P1 ? 'p1' : 'p2');
-          el.appendChild(pv);
+        // 空格：AI 思考中，显示候选红圈（多个候选 + 当前激活一个高亮放大）
+        if (this.mode === 'local' && this.aiCandidates.length > 0) {
+          const key = `${row}-${col}`;
+          const candIdx = this.aiCandidates.indexOf(key);
+          if (candIdx > -1) {
+            const cv = document.createElement('div');
+            const active = (candIdx === this.aiCandidatesActiveIdx);
+            cv.className = 'think-candidate ' + (active ? 'active' : 'dim');
+            el.appendChild(cv);
+          }
         }
-      }
-
-      // last-move 光圈
-      if (this.lastMove && this.lastMove.row === row && this.lastMove.col === col) {
-        el.classList.add('last-move');
       }
     });
 
-    // 高亮赢线
+    // 高亮赢线（仍保留，用户没说去掉赢线高亮）
     const winLine = this.state.winLine;
     document.querySelectorAll('.cell').forEach((el) => el.classList.remove('win'));
     if (winLine && this.state.status === 'ended') {
@@ -734,25 +807,26 @@ const App = {
     }
 
     // 棋盘禁用态（AI 思考 / 对局结束）
+    const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
     if (this.state.status === 'ended') {
       this.setBoardDisabled(true);
     } else if (this.mode === 'local') {
-      this.setBoardDisabled(!!this.aiTimer || this.state.current !== P1);
+      this.setBoardDisabled(!!this.aiTimer || this.state.current !== humanPlayer);
     }
 
     this.renderTurnIndicator();
 
-    // 结束显示：横幅 + 联机时若有投票请求，显示投票条
+    // 结束显示：横幅按钮区 + 联机投票条
     if (this.state.status === 'ended') {
       this.renderEndBanner();
       if (this.mode === 'online') this.renderRematchBar();
-      else this.hideRematchBar();     // 单机：无论如何不显示投票条
+      else this.hideRematchBar();
     } else {
       this.hideEndBanner();
       if (this.mode === 'local') {
-        this.hideRematchBar();         // 单机 playing 时强制隐藏投票条
+        this.hideRematchBar();
       } else if (this.rematch.status === 'none') {
-        this.hideRematchBar();         // 联机 无重开请求时隐藏投票条
+        this.hideRematchBar();
       }
     }
 
@@ -762,49 +836,59 @@ const App = {
   renderTurnIndicator() {
     const el = safeGet('turn-indicator');
     if (!el || !this.state) return;
-    let cur = this.state.current;
-    let label;
+    const cur = this.state.current;
+    let label = '';
     let dotHtml = '';
+
     if (this.state.status === 'ended') {
-      label = '对局结束';
+      // 胜利归属由 winner 决定 — 白 / 黑 / 平局
+      const w = this.state.winner;
+      if (w === 0) label = '平局';
+      else if (w === WHITE) label = '白方胜利！ 🎉';
+      else label = '黑方胜利！';
     } else if (this.mode === 'local') {
-      if (cur === P1) {
-        label = '你的回合';
+      const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+      const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
+      const sideHint = mySideLabel(this.playerSide);
+      if (cur === humanPlayer) {
+        label = `${sideHint} · 你的回合`;
       } else {
-        label = this.aiPreview ? 'AI 预选了落子…' : 'AI 思考中';
+        // AI 思考中 — 显示提示小点；候选循环阶段仍用同文案
+        label = `${sideHint} · AI 思考中`;
         dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
       }
     } else if (this.mode === 'online') {
       label = cur === this.mySeat ? '你的回合' : '对方回合';
       if (cur !== this.mySeat) dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
     } else {
-      label = cur === P1 ? '玩家 1 回合' : '玩家 2 回合';
+      label = cur === WHITE ? '白方回合' : '黑方回合';
     }
     el.innerHTML = label + dotHtml;
-    // className: 谁的回合就用谁的色；如果显示 AI 思考但其实是 P2 就用 P2 色
-    if (this.state.status === 'ended') el.className = 'p1';
-    else if (this.mode === 'local') el.className = (cur === P1) ? 'p1' : 'p2';
-    else el.className = (cur === this.mySeat) ? 'p1' : 'p2';
+    // 颜色：本地/联机都根据 cur 选用白色类或黑色类（white/black），ended 保持中性 white
+    if (this.state.status === 'ended') el.className = 'white';
+    else if (this.mode === 'local') el.className = (cur === WHITE) ? 'white' : 'black';
+    else el.className = (cur === this.mySeat) ? 'white' : 'black';
   },
 
   renderEndBanner() {
     if (!this.state) return;
     const winner = this.state.winner;
-    let title = '', cls = '';
+    let cls = '';
+    // 根据本地玩家相对视角分 win/lose 颜色（但 banner.title 现在不显示胜负）
     if (this.mode === 'local') {
-      if (winner === 0)      { title = '平局'; cls = 'draw'; }
-      else if (winner === P1){ title = '你赢了！ 🎉'; cls = 'win'; }
-      else                  { title = 'AI 获胜';   cls = 'lose'; }
-      // 单机 banner 显示 再来一局/返回菜单
+      if (winner === 0) cls = 'draw';
+      else {
+        const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+        cls = (winner === humanPlayer) ? 'win' : 'lose';
+      }
       const again = safeGet('btn-end-again');
       if (again) { again.style.display = ''; again.textContent = '再来一局'; again.disabled = false; }
-      this.showEndBanner(title, cls);
+      this.showEndBanner('', cls);
       return;
     }
     // online
-    if (winner === 0)                  { title = '平局'; cls = 'draw'; }
-    else if (winner === this.mySeat)   { title = '你赢了！ 🎉'; cls = 'win'; }
-    else                               { title = '对手获胜'; cls = 'lose'; }
+    if (winner === 0) cls = 'draw';
+    else cls = (winner === this.mySeat) ? 'win' : 'lose';
     const again = safeGet('btn-end-again');
     if (again) {
       if (this.mySeat === 1) {
@@ -812,39 +896,41 @@ const App = {
         again.textContent = (this.rematch.status === 'pending') ? '撤回重开请求' : '请求再来一局';
         again.disabled = false;
       } else {
-        // 客人不显示"再来一局"按钮（客人用投票条）
         again.style.display = 'none';
       }
     }
-    this.showEndBanner(title, cls);
+    this.showEndBanner('', cls);
   },
 
   _gemSVG(player) {
-    if (player === 1) {
+    // P1 = 白方（珠光白，高亮光珠），P2 = 黑方（深墨黑 + 银色磨砂边）
+    if (player === WHITE) {
       return `<svg viewBox="0 0 100 100" class="gem"><defs>
-        <radialGradient id="g1" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
-          <stop offset="35%" stop-color="#ffd8f0" stop-opacity="0.95"/>
-          <stop offset="70%" stop-color="#c77dff"/>
-          <stop offset="100%" stop-color="#5a189a"/>
+        <radialGradient id="gw" cx="50%" cy="38%" r="65%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
+          <stop offset="40%" stop-color="#fff9f2" stop-opacity="0.98"/>
+          <stop offset="75%" stop-color="#efe6d7" stop-opacity="0.96"/>
+          <stop offset="100%" stop-color="#c9bfa8" stop-opacity="0.92"/>
         </radialGradient>
-        <filter id="glow1"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glw"><feGaussianBlur stdDeviation="2.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#g1)" filter="url(#glow1)" stroke="#fff" stroke-opacity="0.3"/>
-      <polygon points="50,8 70,30 50,50 30,30" fill="#ffffff" fill-opacity="0.25"/>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#gw)" filter="url(#glw)" stroke="#fffdf8" stroke-opacity="0.7"/>
+      <polygon points="50,8 70,30 50,50 30,30" fill="#ffffff" fill-opacity="0.55"/>
+      <polygon points="30,30 50,50 30,70 14,52" fill="#ffffff" fill-opacity="0.2"/>
     </svg>`;
     } else {
       return `<svg viewBox="0 0 100 100" class="gem"><defs>
-        <radialGradient id="g2" cx="50%" cy="40%" r="60%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.85"/>
-          <stop offset="35%" stop-color="#c8b6ff" stop-opacity="0.95"/>
-          <stop offset="70%" stop-color="#7b2cbf"/>
-          <stop offset="100%" stop-color="#240046"/>
+        <radialGradient id="gb" cx="50%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#6b6b7a" stop-opacity="0.9"/>
+          <stop offset="35%" stop-color="#2e2e3a" stop-opacity="0.95"/>
+          <stop offset="70%" stop-color="#14141c" stop-opacity="0.98"/>
+          <stop offset="100%" stop-color="#04040a" stop-opacity="1"/>
         </radialGradient>
-        <filter id="glow2"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glb"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#g2)" filter="url(#g2)" stroke="#a0c4ff" stroke-opacity="0.4"/>
-      <polygon points="50,8 70,30 50,50 30,30" fill="#e0fbff" fill-opacity="0.25"/>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#gb)" filter="url(#glb)" stroke="#d7dce8" stroke-opacity="0.55"/>
+      <polygon points="50,8 70,30 50,50 30,30" fill="#9aa3b8" fill-opacity="0.35"/>
+      <polygon points="88,30 88,70 68,50 70,30" fill="#ffffff" fill-opacity="0.08"/>
     </svg>`;
     }
   },
