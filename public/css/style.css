@@ -299,11 +299,11 @@ body::after {
   border: 1px solid rgba(255,255,255,0.1);
   backdrop-filter: blur(8px);
 }
-.turn-indicator.white { color: #fff9f2; text-shadow: 0 0 8px rgba(255,240,210,0.65); }
-.turn-indicator.black { color: #d7dce8; text-shadow: 0 0 8px rgba(154,163,184,0.55); }
+.turn-indicator.white { color: #ffe6f3; text-shadow: 0 0 8px rgba(255,155,210,0.72); }
+.turn-indicator.black { color: #d7cdff; text-shadow: 0 0 8px rgba(150,130,255,0.68); }
 /* 兼容保留 p1/p2 */
-.turn-indicator.p1 { color: #fff9f2; text-shadow: 0 0 8px rgba(255,240,210,0.65); }
-.turn-indicator.p2 { color: #d7dce8; text-shadow: 0 0 8px rgba(154,163,184,0.55); }
+.turn-indicator.p1 { color: #ffe6f3; text-shadow: 0 0 8px rgba(255,155,210,0.72); }
+.turn-indicator.p2 { color: #d7cdff; text-shadow: 0 0 8px rgba(150,130,255,0.68); }
 
 .game-actions { display: flex; gap: 8px; }
 
@@ -512,15 +512,15 @@ body::after {
 .piece.p1 .gem { animation: pulseP1 2.2s ease-in-out infinite; }
 .piece.p2 .gem { animation: pulseP2 2.4s ease-in-out infinite; }
 
-/* P1 = 白方：暖白珠光脉冲辉光 */
+/* P1 = 先手 · 粉白棋：粉+青紫脉冲辉光 */
 @keyframes pulseP1 {
-  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.55)) drop-shadow(0 0 6px rgba(255,240,210,0.45)); }
-  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 16px rgba(255,236,180,0.8)); }
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.55)) drop-shadow(0 0 6px rgba(255,150,210,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 18px rgba(198,150,255,0.78)); }
 }
-/* P2 = 黑方：深墨磨砂边 + 冷银光呼吸 */
+/* P2 = 后手 · 紫蓝棋：蓝紫渐变呼吸光晕 */
 @keyframes pulseP2 {
-  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 4px rgba(154,163,184,0.3)); }
-  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 10px rgba(190,200,220,0.6)); }
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 5px rgba(110,92,255,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
 }
 
 /* ========== AI 思考候选红圈（2-3 个位置循环切换高亮） ========== */

@@ -774,9 +774,13 @@ const App = {
 
       if (v !== 0) {
         const piece = document.createElement('div');
-        // p1 = white, p2 = black 对应 CSS 颜色
+        // p1 = 粉白（先手），p2 = 紫蓝（后手）对应 CSS 颜色
         piece.className = 'piece p' + v;
-        // 不再做 pendingRemove 红框 / fading 闪烁 / last-move 蓝框
+        // 最早棋子闪烁：按 pendingRemove 精确标记棋子本体（不加单元格红框）
+        const pr = this.state.pendingRemove;
+        if (pr && pr.row === row && pr.col === col) {
+          piece.classList.add('fading');
+        }
         piece.classList.add('drop');
         requestAnimationFrame(() => piece.classList.remove('drop'));
         piece.innerHTML = this._gemSVG(v);
@@ -903,34 +907,61 @@ const App = {
   },
 
   _gemSVG(player) {
-    // P1 = 白方（珠光白，高亮光珠），P2 = 黑方（深墨黑 + 银色磨砂边）
+    // P1 = 先手 · 粉白（粉+珠光白+青蓝边，原神月亮棋白棋色）
+    // P2 = 后手 · 紫蓝（皇家蓝 + 紫罗兰，原神月亮棋黑棋色）
     if (player === WHITE) {
       return `<svg viewBox="0 0 100 100" class="gem"><defs>
-        <radialGradient id="gw" cx="50%" cy="38%" r="65%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="1"/>
-          <stop offset="40%" stop-color="#fff9f2" stop-opacity="0.98"/>
-          <stop offset="75%" stop-color="#efe6d7" stop-opacity="0.96"/>
-          <stop offset="100%" stop-color="#c9bfa8" stop-opacity="0.92"/>
+        <radialGradient id="gw" cx="48%" cy="36%" r="68%">
+          <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
+          <stop offset="32%"  stop-color="#fff5fb" stop-opacity="0.98"/>
+          <stop offset="58%"  stop-color="#ffc3de" stop-opacity="0.96"/>
+          <stop offset="82%"  stop-color="#ff8fc7" stop-opacity="0.94"/>
+          <stop offset="100%" stop-color="#c97bff" stop-opacity="0.9"/>
         </radialGradient>
-        <filter id="glw"><feGaussianBlur stdDeviation="2.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="gws" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"  stop-color="#b6efff" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="#ffa4d6" stop-opacity="0.1"/>
+        </linearGradient>
+        <filter id="glw"><feGaussianBlur stdDeviation="2.4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#gw)" filter="url(#glw)" stroke="#fffdf8" stroke-opacity="0.7"/>
-      <polygon points="50,8 70,30 50,50 30,30" fill="#ffffff" fill-opacity="0.55"/>
-      <polygon points="30,30 50,50 30,70 14,52" fill="#ffffff" fill-opacity="0.2"/>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#gw)" filter="url(#glw)" stroke="#ffd8ec" stroke-opacity="0.78" stroke-width="1.2"/>
+      <!-- 左上青蓝粉 facet -->
+      <polygon points="12,30 30,30 14,52 12,30" fill="url(#gws)"/>
+      <polygon points="30,30 50,8 50,50 30,70 14,52 30,30" fill="#c4f3ff" fill-opacity="0.14"/>
+      <!-- 顶部高光 -->
+      <polygon points="50,8 70,30 50,44 30,30" fill="#ffffff" fill-opacity="0.52"/>
+      <!-- 右下粉 facet -->
+      <polygon points="88,30 88,70 70,50 70,30" fill="#ff6fb8" fill-opacity="0.18"/>
+      <polygon points="50,92 30,70 50,54 70,70 88,70 50,92" fill="#b87aff" fill-opacity="0.18"/>
+      <!-- 中央闪耀点 -->
+      <circle cx="46" cy="40" r="3.4" fill="#ffffff" fill-opacity="0.92"/>
     </svg>`;
     } else {
       return `<svg viewBox="0 0 100 100" class="gem"><defs>
-        <radialGradient id="gb" cx="50%" cy="35%" r="65%">
-          <stop offset="0%" stop-color="#6b6b7a" stop-opacity="0.9"/>
-          <stop offset="35%" stop-color="#2e2e3a" stop-opacity="0.95"/>
-          <stop offset="70%" stop-color="#14141c" stop-opacity="0.98"/>
-          <stop offset="100%" stop-color="#04040a" stop-opacity="1"/>
+        <radialGradient id="gb" cx="50%" cy="34%" r="70%">
+          <stop offset="0%"   stop-color="#e9efff" stop-opacity="1"/>
+          <stop offset="30%"  stop-color="#8fb3ff" stop-opacity="0.98"/>
+          <stop offset="58%"  stop-color="#7a5bff" stop-opacity="0.97"/>
+          <stop offset="84%"  stop-color="#4a2bc7" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#241070" stop-opacity="0.92"/>
         </radialGradient>
-        <filter id="glb"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <linearGradient id="gbs" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"  stop-color="#7e6bff" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="#3b6fff" stop-opacity="0.28"/>
+        </linearGradient>
+        <filter id="glb"><feGaussianBlur stdDeviation="2.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#gb)" filter="url(#glb)" stroke="#d7dce8" stroke-opacity="0.55"/>
-      <polygon points="50,8 70,30 50,50 30,30" fill="#9aa3b8" fill-opacity="0.35"/>
-      <polygon points="88,30 88,70 68,50 70,30" fill="#ffffff" fill-opacity="0.08"/>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#gb)" filter="url(#glb)" stroke="#c0b8ff" stroke-opacity="0.72" stroke-width="1.2"/>
+      <!-- 左紫 facet + 右蓝 facet 斜切 -->
+      <polygon points="12,30 30,30 14,52 12,30" fill="#9e7cff" fill-opacity="0.28"/>
+      <polygon points="30,30 50,8 50,50 30,70 14,52 30,30" fill="url(#gbs)"/>
+      <!-- 顶部高光 -->
+      <polygon points="50,8 70,30 50,44 30,30" fill="#d7e6ff" fill-opacity="0.38"/>
+      <!-- 右下紫+蓝混合 facet -->
+      <polygon points="88,30 88,70 68,50 70,30" fill="#3a6bff" fill-opacity="0.24"/>
+      <polygon points="50,92 30,70 50,54 70,70 88,70 50,92" fill="#6b3cff" fill-opacity="0.2"/>
+      <!-- 中央闪耀点 -->
+      <circle cx="46" cy="40" r="3" fill="#e9f2ff" fill-opacity="0.9"/>
     </svg>`;
     }
   },
