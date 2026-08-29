@@ -22,13 +22,11 @@ class LocalGame {
     if (this.board[row][col] !== 0) return { ok: false };
 
     let removed = null;
-    // ✅ 先移除该方最早的棋子（如果已有 3 颗）
     if (this.pieces[player].length >= 3) {
       const old = this.pieces[player].shift();
       this.board[old.row][old.col] = 0;
       removed = old;
     }
-    // 再放下新的
     this.board[row][col] = player;
     this.pieces[player].push({ row, col });
 
@@ -42,7 +40,6 @@ class LocalGame {
     }
 
     const next = this.current === P1 ? P2 : P1;
-    // 预告刚下完子的玩家（player）最早的棋子，在对方的回合显示闪烁
     if (this.pieces[player].length >= 3) {
       const oldest = this.pieces[player][0];
       this.pendingRemove = { player, row: oldest.row, col: oldest.col };
@@ -92,17 +89,21 @@ const App = {
   roomCode: null,
   mySeat: 1,
   roomPlayers: [],
-  // rematch: { status: 'none'|'pending'|'accepted'|'rejected', byHost: bool, guestResponse: null|true|false }
-  //  - pending: 房主已发起，等待客人同意/拒绝
-  //  - accepted: 客人同意 / 房主直接一键重开
-  //  - rejected: 客人拒绝 / 客人离开
+  // rematch: { status: 'none'|'pending'|'accepted'|'rejected', guestResponse: null|true|false }
   rematch: { status: 'none', byHost: false, guestResponse: null },
 
-  // 渲染所需快照
-  state: null, // {board,current,status,winner,winLine,pendingRemove,pieces}
+  // AI 调度：延迟时间 & 预选落子（预览）
+  aiTimer: null,
+  aiPreview: null, // {row, col, player}
 
+  // 上一手落子（渲染成高亮光圈）
+  lastMove: null,
+
+  // 渲染所需快照
+  state: null,
+
+  // ==================== 初始化 ====================
   init() {
-    // 检查 URL 是否为房间链接
     const path = location.pathname;
     const m = path.match(/^\/r\/([A-Z0-9]{6})$/i);
     if (m) {
@@ -113,35 +114,35 @@ const App = {
     }
 
     // 菜单按钮
-    document.getElementById('btn-local').addEventListener('click', () => this.showDifficultySelect());
-    document.getElementById('btn-online-create').addEventListener('click', () => this.createRoom());
-    document.getElementById('btn-online-join').addEventListener('click', () => this.showJoinDialog());
+    safeGet('btn-local')?.addEventListener('click', () => this.showDifficultySelect());
+    safeGet('btn-online-create')?.addEventListener('click', () => this.createRoom());
+    safeGet('btn-online-join')?.addEventListener('click', () => this.showJoinDialog());
 
-    document.getElementById('diff-easy').addEventListener('click', () => this.startLocal('easy'));
-    document.getElementById('diff-normal').addEventListener('click', () => this.startLocal('normal'));
-    document.getElementById('diff-hard').addEventListener('click', () => this.startLocal('hard'));
+    safeGet('diff-easy')?.addEventListener('click', () => this.startLocal('easy'));
+    safeGet('diff-normal')?.addEventListener('click', () => this.startLocal('normal'));
+    safeGet('diff-hard')?.addEventListener('click', () => this.startLocal('hard'));
 
     // 对局界面按钮
-    document.getElementById('btn-restart').addEventListener('click', () => this.handleRestart());
-    document.getElementById('btn-exit').addEventListener('click', () => this.exitToMenu());
+    safeGet('btn-restart')?.addEventListener('click', () => this.handleRestart());
+    safeGet('btn-exit')?.addEventListener('click', () => this.exitToMenu());
 
-    // 重开按钮（联机：房主发起/撤回；客人看到同意/拒绝，在 btn-rematch-* 里）
-    document.getElementById('btn-rematch-yes').addEventListener('click', () => this.rematchAction('accept'));
-    document.getElementById('btn-rematch-no').addEventListener('click', () => this.rematchAction('cancel'));
+    // 重开投票条（联机）
+    safeGet('btn-rematch-yes')?.addEventListener('click', () => this.rematchAction('accept'));
+    safeGet('btn-rematch-no')?.addEventListener('click', () => this.rematchAction('cancel'));
 
     // 棋盘点击
     document.querySelectorAll('.cell').forEach((el) => {
       el.addEventListener('click', () => {
-        const row = parseInt(el.dataset.row);
-        const col = parseInt(el.dataset.col);
+        const row = parseInt(el.dataset.row, 10);
+        const col = parseInt(el.dataset.col, 10);
         this.handleCellClick(row, col);
       });
     });
 
     // 加入房间对话框
-    document.getElementById('btn-join-cancel').addEventListener('click', () => this.hideJoinDialog());
-    document.getElementById('btn-join-confirm').addEventListener('click', () => {
-      const val = document.getElementById('join-input').value;
+    safeGet('btn-join-cancel')?.addEventListener('click', () => this.hideJoinDialog());
+    safeGet('btn-join-confirm')?.addEventListener('click', () => {
+      const val = safeGet('join-input').value;
       if (!val.trim()) return;
       if (this.socket) {
         this.socket.emit('room:join', { roomCode: val });
@@ -149,40 +150,84 @@ const App = {
       }
     });
 
-    // 游戏结果对话框 退出按钮
-    document.getElementById('btn-result-exit').addEventListener('click', () => {
-      document.getElementById('result-overlay').classList.remove('show');
-      this.exitToMenu();
-    });
-    // 游戏结果对话框 再来一局按钮
-    document.getElementById('btn-result-again').addEventListener('click', () => this.handleRestart());
+    // 结束横幅按钮（替代全屏结果弹窗）
+    safeGet('btn-end-again')?.addEventListener('click', () => this.handleRestart());
+    safeGet('btn-end-menu')?.addEventListener('click', () => this.exitToMenu());
+
+    // 通用确认对话框（单机重开确认等）
+    safeGet('btn-confirm-no')?.addEventListener('click', () => this.hideConfirm());
+    safeGet('btn-confirm-yes')?.addEventListener('click', () => this.onConfirmYes());
 
     window.addEventListener('resize', () => this.render());
   },
 
+  // ==================== 通用工具 ====================
+  showConfirm({ title, desc, onYes }) {
+    const dlg = safeGet('confirm-dialog');
+    safeGet('confirm-title').textContent = title || '确认操作';
+    safeGet('confirm-desc').textContent  = desc  || '';
+    this._confirmCallback = onYes || null;
+    dlg.hidden = false;
+    dlg.classList.add('show');
+  },
+  hideConfirm() {
+    const dlg = safeGet('confirm-dialog');
+    dlg.classList.remove('show');
+    setTimeout(() => { dlg.hidden = true; }, 260);
+    this._confirmCallback = null;
+  },
+  onConfirmYes() {
+    const cb = this._confirmCallback;
+    this.hideConfirm();
+    if (typeof cb === 'function') cb();
+  },
+
+  hideRematchBar() {
+    const bar = safeGet('rematch-bar');
+    if (!bar) return;
+    bar.classList.remove('show');
+    bar.hidden = true;
+  },
+  showRematchBar() {
+    const bar = safeGet('rematch-bar');
+    if (!bar) return;
+    bar.hidden = false;
+    bar.classList.add('show');
+  },
+
+  // ==================== 菜单切换 ====================
   showMenu() {
     this.mode = 'menu';
-    document.getElementById('menu').classList.add('show');
-    document.getElementById('game').classList.remove('show');
-    document.getElementById('room-info').classList.remove('show');
-    document.getElementById('difficulty-select').classList.remove('show');
-    document.getElementById('result-overlay').classList.remove('show');
-    document.getElementById('rematch-bar').classList.remove('show');
+    this.clearAiTimer(true);
+    this.aiPreview = null;
+    this.lastMove = null;
+    safeGet('menu')?.classList.add('show');
+    safeGet('game')?.classList.remove('show');
+    safeGet('room-info')?.classList.remove('show');
+    safeGet('difficulty-select')?.classList.remove('show');
+    const dlg = safeGet('result-overlay'); if (dlg) dlg.classList.remove('show');
+    this.hideRematchBar();
+    this.hideEndBanner();
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
+    this.setBoardDisabled(false);
   },
 
   showDifficultySelect() {
-    document.getElementById('difficulty-select').classList.add('show');
+    safeGet('difficulty-select')?.classList.add('show');
   },
-
   hideJoinDialog() {
-    document.getElementById('join-dialog').classList.remove('show');
+    safeGet('join-dialog')?.classList.remove('show');
   },
-
   showJoinDialog() {
-    document.getElementById('join-dialog').classList.add('show');
-    document.getElementById('join-input').value = '';
-    setTimeout(() => document.getElementById('join-input').focus(), 50);
+    // 静态分享版本：提示用户需要部署联机服务端
+    if (window.MOON_CHESS_STANDALONE && typeof window.__moon_chess_showOnlineTip === 'function') {
+      window.__moon_chess_showOnlineTip();
+      return;
+    }
+    safeGet('join-dialog')?.classList.add('show');
+    const inp = safeGet('join-input');
+    inp.value = '';
+    setTimeout(() => inp.focus(), 50);
   },
 
   startLocal(difficulty) {
@@ -190,36 +235,76 @@ const App = {
     this.mode = 'local';
     this.local = new LocalGame();
     this.state = this.local.snapshot();
-    document.getElementById('menu').classList.remove('show');
-    document.getElementById('difficulty-select').classList.remove('show');
-    document.getElementById('game').classList.add('show');
-    document.getElementById('room-info').classList.remove('show');
+    this.clearAiTimer(true);
+    this.aiPreview = null;
+    this.lastMove = null;
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
+    safeGet('menu')?.classList.remove('show');
+    safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('game')?.classList.add('show');
+    safeGet('room-info')?.classList.remove('show');
     this.hideDialogs();
+    this.hideRematchBar();
+    this.hideEndBanner();
+    this.setBoardDisabled(false);
     this.updateRestartButton();
     this.render();
   },
 
   hideDialogs() {
-    document.getElementById('difficulty-select').classList.remove('show');
-    document.getElementById('join-dialog').classList.remove('show');
+    safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('join-dialog')?.classList.remove('show');
   },
 
-  // ======== 联机 ========
+  hideEndBanner() {
+    const banner = safeGet('end-banner'); if (!banner) return;
+    banner.classList.remove('show');
+    banner.hidden = true;
+  },
+  showEndBanner(title, cls) {
+    const banner = safeGet('end-banner'); if (!banner) return;
+    const t = safeGet('end-title');
+    t.textContent = title || '';
+    t.classList.remove('win','lose','draw');
+    if (cls) t.classList.add(cls);
+    banner.hidden = false;
+    banner.classList.add('show');
+  },
+
+  setBoardDisabled(disabled) {
+    const board = safeGet('board'); if (!board) return;
+    board.classList.toggle('disabled', !!disabled);
+  },
+
+  clearAiTimer(alsoCancelPreview) {
+    if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    if (alsoCancelPreview) this.aiPreview = null;
+  },
+
+  // ==================== 联机 ====================
   goOnline() {
+    // 单机静态分享版本（moon-chess-standalone.html）：没有真实 WebSocket 服务
+    if (window.MOON_CHESS_STANDALONE && typeof window.__moon_chess_showOnlineTip === 'function') {
+      window.__moon_chess_showOnlineTip();
+      return;
+    }
     this.mode = 'online';
+    this.clearAiTimer(true);
+    this.lastMove = null;
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
+    this.hideEndBanner();
     if (!this.socket) {
       this.socket = io();
       this.setupSocket();
     }
-    document.getElementById('menu').classList.remove('show');
-    document.getElementById('game').classList.add('show');
-    document.getElementById('room-info').classList.add('show');
+    safeGet('menu')?.classList.remove('show');
+    safeGet('game')?.classList.add('show');
+    safeGet('room-info')?.classList.add('show');
+    // 联机重开栏默认隐藏，仅当房主发起请求（status= pending/rejected）才显示
+    this.hideRematchBar();
     this.updateRestartButton();
 
     if (this.roomCode) {
-      // URL 带房间号
       this.socket.emit('room:join', { roomCode: this.roomCode });
     }
   },
@@ -240,6 +325,7 @@ const App = {
       this.updateRoomUI(data);
       this.state = data.game;
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
+      this.hideRematchBar();
       this.updateRestartButton();
       this.render();
     });
@@ -252,6 +338,7 @@ const App = {
       this.updateRoomUI(data);
       this.state = data.game;
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
+      this.hideRematchBar();
       this.updateRestartButton();
       this.render();
     });
@@ -270,49 +357,51 @@ const App = {
     });
 
     s.on('room:playerLeft', () => {
-      // 客人离开 → 按规则：客人离开/关页面 = 拒绝重开
       if (this.rematch.status === 'pending') {
         this.rematch.status = 'rejected';
         this.rematch.guestResponse = false;
       }
       this.updateRoomUI({});
       this.updateRestartButton();
-      this.renderResult();
+      this.renderRematchBar();
     });
 
     s.on('game:update', (data) => {
       this.state = { ...this.state, ...data };
-      // 也更新 pieces 便于闪烁预告判断
       if (data.current !== undefined) this.state.current = data.current;
       if (data.pendingRemove !== undefined) this.state.pendingRemove = data.pendingRemove;
       if (data.status !== undefined) this.state.status = data.status;
       if (data.winner !== undefined) this.state.winner = data.winner;
       if (data.winLine !== undefined) this.state.winLine = data.winLine;
-      // 一局状态变化，清空本地重开请求状态（服务端也会清空）
+      // 记录 lastMove（落子者通过 seat + data.row/col 推不出 seat，这里仅服务端可提供；保守起见在联机模式下我们拿 data.row/col 当作上一手）
+      if (typeof data.row === 'number' && typeof data.col === 'number') {
+        this.lastMove = { row: data.row, col: data.col };
+      }
       if (data.status === 'playing') {
         this.rematch = { status: 'none', byHost: false, guestResponse: null };
+        this.hideRematchBar();
       }
-      // 更新 pieces 映射：前端重建
       this.rebuildPiecesFromBoard();
       this.updateRestartButton();
       this.render();
     });
 
-    // 重开协议 V2：仅房主可发起/撤回；客人可同意/拒绝；客人离线=拒绝
     s.on('game:rematchUpdate', (data) => {
-      // data: { status: 'none'|'pending'|'accepted'|'rejected', guestResponse: null|true|false }
       this.rematch.status = data.status || 'none';
       this.rematch.guestResponse = (data.guestResponse === undefined) ? null : data.guestResponse;
       this.rematch.byHost = (data.status === 'pending');
       this.updateRestartButton();
-      this.renderResult();
+      this.renderRematchBar();
     });
 
     s.on('game:restarted', ({ game }) => {
       this.state = game;
       this.rebuildPiecesFromBoard();
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
-      document.getElementById('result-overlay').classList.remove('show');
+      this.hideEndBanner();
+      this.hideRematchBar();
+      this.setBoardDisabled(false);
+      this.lastMove = null;
       this.updateRestartButton();
       this.render();
     });
@@ -322,11 +411,8 @@ const App = {
     });
   },
 
-  // 从 board + pendingRemove 重建 pieces 队列（联机同步时可用）
   rebuildPiecesFromBoard() {
     if (!this.state) return;
-    // 联机时 pieces 信息会跟落子事件一起过去，但为了稳妥，这里从 board 重新生成（不含顺序，仅用于渲染）
-    // 真实队列由服务端维护，客户端仅需 board 和 pendingRemove 即可渲染
     if (!this.state.pieces) {
       this.state.pieces = { 1: [], 2: [] };
       for (let r = 0; r < 3; r++) {
@@ -339,16 +425,17 @@ const App = {
   },
 
   updateRoomUI(data) {
-    const info = document.getElementById('room-info');
+    const info = safeGet('room-info');
+    if (!info) return;
     if (this.mode !== 'online') { info.classList.remove('show'); return; }
     info.classList.add('show');
-    document.getElementById('room-code').textContent = this.roomCode || '--';
+    safeGet('room-code').textContent = this.roomCode || '--';
     const url = location.origin + '/r/' + (this.roomCode || '');
-    document.getElementById('room-link').textContent = url;
-    document.getElementById('room-link').href = url;
+    const link = safeGet('room-link');
+    link.textContent = url;
+    link.href = url;
 
-    // 复制链接
-    const copyBtn = document.getElementById('btn-copy');
+    const copyBtn = safeGet('btn-copy');
     copyBtn.onclick = () => {
       navigator.clipboard?.writeText(url).then(() => {
         copyBtn.textContent = '已复制 ✓';
@@ -357,123 +444,225 @@ const App = {
     };
   },
 
-  // 根据模式 + 身份 + 阶段 更新顶栏「重开」按钮 文案/禁用/显示
+  // ==================== UI 状态：重开按钮/横幅 ====================
   updateRestartButton() {
-    const btn = document.getElementById('btn-restart');
-    const bar = document.getElementById('rematch-bar');
-    const again = document.getElementById('btn-result-again');
+    const btn = safeGet('btn-restart');
+    const again = safeGet('btn-end-again');
+    if (!btn) return;
 
     if (this.mode === 'local') {
-      // 单机：任何时候都可以直接重开，永远不显示投票条
       btn.textContent = '↻ 重开';
       btn.disabled = false;
-      bar.classList.remove('show');
-      bar.hidden = true;
-      if (again) { again.style.display = ''; again.disabled = false; }
+      // 单机永远隐藏重开投票条
+      this.hideRematchBar();
+      // end-banner 的「再来一局」在单机始终是"再来一局"，不区分 pending 与否
+      if (again) {
+        again.textContent = '再来一局';
+        again.disabled = false;
+      }
       return;
     }
 
     if (this.mode !== 'online') return;
 
     const isHost = (this.mySeat === 1);
-    const ended = this.state && this.state.status === 'ended';
-    const hasGuest = this.roomPlayers && this.roomPlayers.length >= 2 &&
-                     this.roomPlayers.every((p) => p.seat !== 2 || p.online !== false);
-    // 简单判断：第 2 位玩家存在就认为有客人
-    const guestPresent = !!(this.roomPlayers && this.roomPlayers.length >= 2);
-
-    // 顶部按钮
-    bar.hidden = false;
     if (isHost) {
-      // 房主：无论是否结束，都可随时发起「重开请求」；已发起时显示「撤回」
       if (this.rematch.status === 'pending') {
         btn.textContent = '↻ 撤回重开';
-        btn.disabled = !ended; // 对局中途不允许撤回？按需求：房主可随时撤回
+        if (again) again.textContent = '撤回重开请求';
       } else {
         btn.textContent = '↻ 请求重开';
-        btn.disabled = false;
+        if (again) again.textContent = '请求再来一局';
       }
+      btn.disabled = false;
+      if (again) again.disabled = false;
     } else {
-      // 客人：不允许主动发起
+      // 客人：不能主动发起
       btn.textContent = '↻ 等待房主';
       btn.disabled = true;
+      // 客人的 end-banner 提供「再来一局」按钮没有意义，隐藏掉（客人用投票条同意/拒绝）
+      if (again) again.style.display = 'none';
+    }
+  },
+
+  // 联机重开栏渲染：仅 status !== none 才显示（none 时什么都不展示）
+  renderRematchBar() {
+    const bar  = safeGet('rematch-bar');
+    const info = safeGet('rematch-info');
+    const yes  = safeGet('btn-rematch-yes');
+    const no   = safeGet('btn-rematch-no');
+    if (!bar || !info || !yes || !no) return;
+
+    if (this.mode !== 'online') {
+      this.hideRematchBar();
+      return;
     }
 
-    // 结果弹窗中的「再来一局」按钮
-    if (again) {
-      if (!ended) { again.style.display = 'none'; }
-      else if (isHost) {
-        again.style.display = '';
-        again.textContent = (this.rematch.status === 'pending') ? '撤回重开请求' : '请求再来一局';
-        again.disabled = false;
+    const status = this.rematch.status;
+    const isHost = (this.mySeat === 1);
+
+    // 规则：联机也默认不显示，只在房主发起或有结果反馈时显示
+    if (status === 'none') {
+      this.hideRematchBar();
+      return;
+    }
+
+    this.showRematchBar();
+
+    if (status === 'pending') {
+      if (isHost) {
+        info.textContent = '已请求“再来一局”，等待对方同意…';
+        yes.style.display = 'none';
+        no.style.display  = '';
+        no.textContent = '撤回';
+        no.disabled = false;
+        // 恢复默认 click（之前可能被重新发起覆盖）
+        no.onclick = null;
+        no.addEventListenerOnce ? null : null;
+        // 重绑到默认（事件绑定在 init 中是全局的，这里不需要再重复）
       } else {
-        // 客人：结果弹窗中不显示这个按钮（客人用底部投票条同意/拒绝）
-        again.style.display = 'none';
+        info.textContent = '房主请求“再来一局”，请选择：';
+        yes.style.display = '';
+        no.style.display  = '';
+        yes.textContent = '同意';
+        no.textContent  = '拒绝';
+        const responded = (this.rematch.guestResponse === true || this.rematch.guestResponse === false);
+        yes.disabled = responded;
+        no.disabled  = responded;
+      }
+    } else if (status === 'accepted') {
+      info.textContent = '双方已同意，正在重开…';
+      yes.style.display = 'none';
+      no.style.display  = 'none';
+    } else if (status === 'rejected') {
+      const reason = (this.rematch.guestResponse === false) ? '对方已拒绝重开请求' : '重开请求已取消';
+      info.textContent = reason;
+      yes.style.display = 'none';
+      if (isHost) {
+        no.style.display = '';
+        no.textContent = '重新发起';
+        no.disabled = false;
+        // 点"重新发起"等价于顶栏点"请求重开"
+        no.onclick = (e) => { e.stopPropagation(); this.handleRestart(); };
+      } else {
+        no.style.display = 'none';
       }
     }
   },
 
-  // ======== 点击处理 ========
+  // ==================== 点击处理 ====================
   handleCellClick(row, col) {
     if (!this.state || this.state.status !== 'playing') return;
 
     if (this.mode === 'local') {
-      // 本地模式：玩家固定 P1，AI 为 P2
-      if (this.state.current !== P1) return;
+      if (this.state.current !== P1) return;     // 不是玩家回合
+      if (this.aiTimer) return;                    // AI 思考中，点不了
+      if (this.local.board[row][col] !== 0) return;
+      // 落子前记下玩家将导致哪颗棋子消失，用于渲染更显眼的 pendingRemove
       const res = this.local.place(row, col, P1);
       if (!res.ok) return;
+      this.lastMove = { row, col, player: P1 };
       this.state = this.local.snapshot();
       this.updateRestartButton();
       this.render();
-      // AI 自动下
+
+      // AI 自动下（分阶段：思考延迟 + 预览 + 再落子）
       if (this.state.status === 'playing' && this.state.current === P2) {
-        setTimeout(() => {
-          const move = AI.aiMove(this.local.board, this.local.pieces, P2, this.difficulty);
-          if (move) {
-            this.local.place(move.row, move.col, P2);
-            this.state = this.local.snapshot();
-            this.updateRestartButton();
-            this.render();
-          }
-        }, 450);
+        this.scheduleAiMove();
       }
-    } else if (this.mode === 'online') {
+      return;
+    }
+
+    if (this.mode === 'online') {
       if (this.state.current !== this.mySeat) return;
-      // 本地预判一下（优化体验）
+      if (this.state.board[row][col] !== 0) return;
+      this.lastMove = { row, col, player: this.mySeat };
       this.socket.emit('game:place', { roomCode: this.roomCode, row, col, seat: this.mySeat });
     }
   },
 
-  // 重开 / 再来一局（顶部按钮 和 结果弹窗「再来一局」共用）
-  handleRestart() {
-    if (this.mode === 'local') {
-      // 单机：立即重开，无投票，结束遮罩跟着关闭
-      this.local.reset();
-      this.state = this.local.snapshot();
-      document.getElementById('result-overlay').classList.remove('show');
-      this.updateRestartButton();
+  scheduleAiMove() {
+    this.clearAiTimer(false);
+    this.aiPreview = null;
+    this.setBoardDisabled(true);
+    this.render();
+
+    // 难度基础延迟 + 随机，让玩家看清"AI 预选"
+    // easy  慢  1200 ~ 2100ms
+    // normal     900 ~ 1700ms
+    // hard       700 ~ 1300ms（但仍然能看清）
+    const base = { easy: 1600, normal: 1250, hard: 950 }[this.difficulty] || 1200;
+    const jitter = Math.floor(Math.random() * 700);
+    const totalDelay = base + jitter;
+
+    // 先在约 35%~55% 时间点计算预选位置并展示 preview（让用户看到"AI 已经想好"）
+    const previewDelay = Math.floor(totalDelay * (0.35 + Math.random() * 0.2));
+    const placeDelay = totalDelay - previewDelay;
+
+    this.aiTimer = setTimeout(() => {
+      const move = AI.aiMove(this.local.board, this.local.pieces, P2, this.difficulty);
+      if (!move) {
+        this.clearAiTimer(true);
+        this.setBoardDisabled(false);
+        this.render();
+        return;
+      }
+      this.aiPreview = { row: move.row, col: move.col, player: P2 };
       this.render();
-      return;
-    }
-    if (this.mode !== 'online' || !this.socket) return;
-    if (this.mySeat !== 1) return; // 客人无权主动发起
-    const ended = this.state && this.state.status === 'ended';
-    if (!ended) {
-      // 进行中：房主也可以请求重开（征求客人同意）；但这里给用户友好提示：直接重开需对方同意
-    }
-    // 服务端按当前状态自动判定：未发起→发起，已发起→撤回
-    this.socket.emit('game:rematch', { roomCode: this.roomCode });
+      this.aiTimer = setTimeout(() => {
+        this.local.place(move.row, move.col, P2);
+        this.lastMove = { row: move.row, col: move.col, player: P2 };
+        this.aiPreview = null;
+        this.aiTimer = null;
+        this.state = this.local.snapshot();
+        this.setBoardDisabled(false);
+        this.updateRestartButton();
+        this.render();
+      }, placeDelay);
+    }, previewDelay);
   },
 
-  // 重开投票条里的客人端操作（accept/reject） 以及 房主端的撤回
-  rematchAction(action /* 'accept' | 'cancel' */) {
+  // 顶部重开 / 结束横幅「再来一局」共用
+  handleRestart() {
+    if (this.mode === 'local') {
+      // 单机：先确认
+      const isEnded = this.state && this.state.status === 'ended';
+      const title = isEnded ? '再来一局？' : '确认重新开始？';
+      const desc  = isEnded ? '当前对局的胜败结果会被清空，开始新的一局吗？' : '当前局的进度会被清空，确定要开始新的一局吗？';
+      this.showConfirm({
+        title, desc,
+        onYes: () => {
+          this.clearAiTimer(true);
+          this.lastMove = null;
+          this.local.reset();
+          this.state = this.local.snapshot();
+          this.hideEndBanner();
+          this.setBoardDisabled(false);
+          this.updateRestartButton();
+          this.render();
+        }
+      });
+      return;
+    }
+
+    if (this.mode !== 'online' || !this.socket) return;
+    if (this.mySeat !== 1) return; // 客人无权主动发起
+    // 发起或撤回（当前 pending 时点击等价于取消）
+    const shouldCancel = (this.rematch.status === 'pending');
+    this.socket.emit('game:rematch', { roomCode: this.roomCode, cancel: shouldCancel || undefined });
+  },
+
+  // 重开投票条按钮
+  rematchAction(action) {
     if (this.mode !== 'online' || !this.socket) return;
     const isHost = (this.mySeat === 1);
     if (isHost) {
-      // 房主在投票条里「取消」= 撤回请求
-      if (action === 'cancel') this.socket.emit('game:rematch', { roomCode: this.roomCode, cancel: true });
+      if (action === 'cancel') {
+        // 如果目前是 rejected 状态，no 按钮绑定已经改成"重新发起"→ 不经过这里，直接 handleRestart。
+        // 正常 pending 时：撤回
+        this.socket.emit('game:rematch', { roomCode: this.roomCode, cancel: true });
+      }
     } else {
-      // 客人：同意/拒绝
       const accept = (action === 'accept');
       this.socket.emit('game:rematchResponse', { roomCode: this.roomCode, accept });
     }
@@ -485,22 +674,24 @@ const App = {
       this.socket = null;
     }
     this.roomCode = null;
+    this.clearAiTimer(true);
     history.replaceState(null, '', '/');
     this.showMenu();
   },
 
   voteRematch(vote) {
-    // 兼容旧版调用（V1 协议已废弃）
+    // 兼容调用（废弃）
     this.rematchAction(vote ? 'accept' : 'cancel');
   },
 
-  // ======== 渲染 ========
+  // ==================== 渲染 ====================
   render() {
     if (!this.state) return;
-    // 棋盘
-    document.querySelectorAll('.cell').forEach((el) => {
-      const row = parseInt(el.dataset.row);
-      const col = parseInt(el.dataset.col);
+
+    const cells = document.querySelectorAll('.cell');
+    cells.forEach((el) => {
+      const row = parseInt(el.dataset.row, 10);
+      const col = parseInt(el.dataset.col, 10);
       const v = this.state.board[row][col];
       el.className = 'cell';
       el.innerHTML = '';
@@ -508,18 +699,27 @@ const App = {
       if (v !== 0) {
         const piece = document.createElement('div');
         piece.className = 'piece p' + v;
-
-        // 如果是下一个要消失的棋子（预告闪烁）
         const pr = this.state.pendingRemove;
         if (pr && pr.row === row && pr.col === col) {
           piece.classList.add('fading');
+          el.classList.add('marked-to-remove');
         }
-
         piece.classList.add('drop');
         requestAnimationFrame(() => piece.classList.remove('drop'));
-
         piece.innerHTML = this._gemSVG(v);
         el.appendChild(piece);
+      } else {
+        // 空格：AI 思考时显示预选位置
+        if (this.mode === 'local' && this.aiPreview && this.aiPreview.row === row && this.aiPreview.col === col) {
+          const pv = document.createElement('div');
+          pv.className = 'preview-move ' + (this.aiPreview.player === P1 ? 'p1' : 'p2');
+          el.appendChild(pv);
+        }
+      }
+
+      // last-move 光圈
+      if (this.lastMove && this.lastMove.row === row && this.lastMove.col === col) {
+        el.classList.add('last-move');
       }
     });
 
@@ -533,138 +733,93 @@ const App = {
       }
     }
 
-    // 顶部信息：当前轮到谁
+    // 棋盘禁用态（AI 思考 / 对局结束）
+    if (this.state.status === 'ended') {
+      this.setBoardDisabled(true);
+    } else if (this.mode === 'local') {
+      this.setBoardDisabled(!!this.aiTimer || this.state.current !== P1);
+    }
+
     this.renderTurnIndicator();
 
-    // 单机：playing 时隐藏结果遮罩；ended 时显示结果 + 「再来一局」
-    // 联机：playing 时隐藏结果遮罩和投票条；ended 时显示结果 + （有请求时显示投票条）
+    // 结束显示：横幅 + 联机时若有投票请求，显示投票条
     if (this.state.status === 'ended') {
-      this.renderResult();
+      this.renderEndBanner();
+      if (this.mode === 'online') this.renderRematchBar();
+      else this.hideRematchBar();     // 单机：无论如何不显示投票条
     } else {
-      document.getElementById('result-overlay').classList.remove('show');
-      if (this.mode !== 'online' || this.rematch.status === 'none') {
-        document.getElementById('rematch-bar').classList.remove('show');
+      this.hideEndBanner();
+      if (this.mode === 'local') {
+        this.hideRematchBar();         // 单机 playing 时强制隐藏投票条
+      } else if (this.rematch.status === 'none') {
+        this.hideRematchBar();         // 联机 无重开请求时隐藏投票条
       }
     }
 
-    // 联机信息
-    if (this.mode === 'online') {
-      this.updateRoomUI({});
-    }
+    if (this.mode === 'online') this.updateRoomUI({});
   },
 
   renderTurnIndicator() {
-    const el = document.getElementById('turn-indicator');
-    if (!this.state) return;
-    if (this.state.status === 'ended') {
-      el.textContent = '对局结束';
-      return;
-    }
+    const el = safeGet('turn-indicator');
+    if (!el || !this.state) return;
     let cur = this.state.current;
     let label;
-    if (this.mode === 'local') {
-      label = cur === P1 ? '你的回合' : 'AI 思考中…';
+    let dotHtml = '';
+    if (this.state.status === 'ended') {
+      label = '对局结束';
+    } else if (this.mode === 'local') {
+      if (cur === P1) {
+        label = '你的回合';
+      } else {
+        label = this.aiPreview ? 'AI 预选了落子…' : 'AI 思考中';
+        dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
+      }
     } else if (this.mode === 'online') {
       label = cur === this.mySeat ? '你的回合' : '对方回合';
+      if (cur !== this.mySeat) dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
     } else {
       label = cur === P1 ? '玩家 1 回合' : '玩家 2 回合';
     }
-    el.textContent = label;
-    el.className = cur === P1 ? 'p1' : 'p2';
+    el.innerHTML = label + dotHtml;
+    // className: 谁的回合就用谁的色；如果显示 AI 思考但其实是 P2 就用 P2 色
+    if (this.state.status === 'ended') el.className = 'p1';
+    else if (this.mode === 'local') el.className = (cur === P1) ? 'p1' : 'p2';
+    else el.className = (cur === this.mySeat) ? 'p1' : 'p2';
   },
 
-  renderResult() {
-    const overlay = document.getElementById('result-overlay');
-    const bar = document.getElementById('rematch-bar');
-    const info = document.getElementById('rematch-info');
-    const yesBtn = document.getElementById('btn-rematch-yes');
-    const noBtn = document.getElementById('btn-rematch-no');
-
-    overlay.classList.add('show');
-    let winner = this.state ? this.state.winner : 0;
-    let title;
+  renderEndBanner() {
+    if (!this.state) return;
+    const winner = this.state.winner;
+    let title = '', cls = '';
     if (this.mode === 'local') {
-      if (winner === 0) title = '平局！';
-      else if (winner === P1) title = '你赢了！ 🎉';
-      else title = 'AI 获胜';
-    } else if (this.mode === 'online') {
-      if (winner === 0) title = '平局！';
-      else if (winner === this.mySeat) title = '你赢了！ 🎉';
-      else title = '对手获胜';
-    } else {
-      title = winner === 0 ? '平局' : `玩家 ${winner} 获胜`;
-    }
-    const titleEl = document.getElementById('result-title');
-    if (titleEl) titleEl.textContent = title;
-
-    // 单机：永远不显示投票条（已在 updateRestartButton 设置 hidden，但兜底）
-    if (this.mode !== 'online') {
-      bar.classList.remove('show');
+      if (winner === 0)      { title = '平局'; cls = 'draw'; }
+      else if (winner === P1){ title = '你赢了！ 🎉'; cls = 'win'; }
+      else                  { title = 'AI 获胜';   cls = 'lose'; }
+      // 单机 banner 显示 再来一局/返回菜单
+      const again = safeGet('btn-end-again');
+      if (again) { again.style.display = ''; again.textContent = '再来一局'; again.disabled = false; }
+      this.showEndBanner(title, cls);
       return;
     }
-
-    // 联机：更新投票条 UI
-    const isHost = (this.mySeat === 1);
-    const status = this.rematch.status; // none | pending | accepted | rejected
-
-    if (status === 'none') {
-      // 未发起：仅房主可发起，客人等待。把投票条显示出来但内容区分。
-      bar.classList.add('show');
-      if (isHost) {
-        info.textContent = '你可以发起“再来一局”请求（对方同意后立即重开）';
-        yesBtn.style.display = 'none';
-        noBtn.style.display = 'none';
+    // online
+    if (winner === 0)                  { title = '平局'; cls = 'draw'; }
+    else if (winner === this.mySeat)   { title = '你赢了！ 🎉'; cls = 'win'; }
+    else                               { title = '对手获胜'; cls = 'lose'; }
+    const again = safeGet('btn-end-again');
+    if (again) {
+      if (this.mySeat === 1) {
+        again.style.display = '';
+        again.textContent = (this.rematch.status === 'pending') ? '撤回重开请求' : '请求再来一局';
+        again.disabled = false;
       } else {
-        info.textContent = '等待房主发起“再来一局”请求…';
-        yesBtn.style.display = 'none';
-        noBtn.style.display = 'none';
-      }
-      return;
-    }
-
-    bar.classList.add('show');
-    if (status === 'pending') {
-      // 已发起 pending
-      if (isHost) {
-        // 房主端：等待客人回应，提供「撤回」
-        info.textContent = '已请求“再来一局”，等待对方同意…';
-        yesBtn.style.display = 'none';
-        noBtn.style.display = '';
-        noBtn.textContent = '撤回';
-        noBtn.disabled = false;
-      } else {
-        // 客人端：同意 / 拒绝
-        info.textContent = '房主请求“再来一局”，请选择：';
-        yesBtn.style.display = '';
-        noBtn.style.display = '';
-        yesBtn.textContent = '同意';
-        noBtn.textContent = '拒绝';
-        const responded = (this.rematch.guestResponse === true || this.rematch.guestResponse === false);
-        yesBtn.disabled = responded;
-        noBtn.disabled = responded;
-      }
-    } else if (status === 'accepted') {
-      info.textContent = '双方已同意，正在重开…';
-      yesBtn.style.display = 'none';
-      noBtn.style.display = 'none';
-    } else if (status === 'rejected') {
-      const reason = (this.rematch.guestResponse === false) ? '对方已拒绝重开请求' : '重开请求已取消';
-      info.textContent = reason;
-      yesBtn.style.display = 'none';
-      if (isHost) {
-        noBtn.style.display = '';
-        noBtn.textContent = '重新发起';
-        noBtn.disabled = false;
-        // 房主点重新发起 = 调 handleRestart()
-        noBtn.onclick = () => this.handleRestart();
-      } else {
-        noBtn.style.display = 'none';
+        // 客人不显示"再来一局"按钮（客人用投票条）
+        again.style.display = 'none';
       }
     }
+    this.showEndBanner(title, cls);
   },
 
   _gemSVG(player) {
-    // P1 粉紫渐变，P2 蓝紫渐变（参考原神月亮棋色调）
     if (player === 1) {
       return `<svg viewBox="0 0 100 100" class="gem"><defs>
         <radialGradient id="g1" cx="50%" cy="40%" r="60%">
@@ -688,11 +843,16 @@ const App = {
         </radialGradient>
         <filter id="glow2"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
       </defs>
-      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#g2)" filter="url(#glow2)" stroke="#a0c4ff" stroke-opacity="0.4"/>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#g2)" filter="url(#g2)" stroke="#a0c4ff" stroke-opacity="0.4"/>
       <polygon points="50,8 70,30 50,50 30,30" fill="#e0fbff" fill-opacity="0.25"/>
     </svg>`;
     }
   },
 };
+
+function safeGet(id) {
+  const el = document.getElementById(id);
+  return el || null;
+}
 
 document.addEventListener('DOMContentLoaded', () => App.init());

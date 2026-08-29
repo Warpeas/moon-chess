@@ -273,7 +273,8 @@ io.on('connection', (socket) => {
       socket.emit('game:error', { reason: result.reason });
       return;
     }
-    io.to(roomCode).emit('game:update', result);
+    // 把刚落的 row/col 捎带给客户端，方便渲染「上一手光圈」& 消失提示
+    io.to(roomCode).emit('game:update', { row, col, seat, ...result });
     // 新一局开始 / 对局进行中：清空重开状态（每次落子都清）
     room.rematch = { status: 'none', guestResponse: null };
   });

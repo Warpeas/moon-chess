@@ -84,6 +84,15 @@
         </div>
       </div>
 
+      <!-- 结束结果横幅（替代原先全屏弹窗；棋盘禁用） -->
+      <div class="end-banner" id="end-banner" hidden>
+        <div class="end-title" id="end-title">你赢了！</div>
+        <div class="end-actions">
+          <button class="btn btn-small" id="btn-end-again">再来一局</button>
+          <button class="btn btn-small primary" id="btn-end-menu">返回菜单</button>
+        </div>
+      </div>
+
       <!-- 棋盘 -->
       <div class="board-wrap">
         <div class="board" id="board">
@@ -151,14 +160,14 @@
     </div>
   </div>
 
-  <!-- ========== 结果对话框 ========== -->
-  <div class="modal-mask result-mask" id="result-overlay">
-
-    <div class="result-modal">
-      <div class="result-title" id="result-title">你赢了！</div>
-      <div class="result-buttons">
-        <button class="btn" id="btn-result-again">再来一局</button>
-        <button class="btn primary" id="btn-result-exit">返回菜单</button>
+  <!-- ========== 通用确认对话框（单机重开确认 / 其它需要用户确认的动作） ========== -->
+  <div class="modal-mask confirm-mask" id="confirm-dialog" hidden>
+    <div class="modal">
+      <div class="confirm-title" id="confirm-title">确认重新开始？</div>
+      <div class="confirm-desc" id="confirm-desc">当前局的进度会被清空，确定要开始新的一局吗？</div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" id="btn-confirm-no">取消</button>
+        <button class="btn primary" id="btn-confirm-yes">确认</button>
       </div>
     </div>
   </div>
