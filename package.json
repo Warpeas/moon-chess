@@ -1,0 +1,14 @@
+{
+  "name": "moon-chess",
+  "version": "1.0.0",
+  "description": "A moon chess (tictactoe with fading pieces) game inspired by Genshin Impact",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

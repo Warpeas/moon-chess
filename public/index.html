@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0d1b2a" />
+  <title>Moon Chess · 月蚀棋</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2242%22 fill=%22%237b2cbf%22/><circle cx=%2235%22 cy=%2235%22 r=%2222%22 fill=%22%230d1b2a%22/></svg>" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <!-- 星空背景 -->
+  <div class="stars" aria-hidden="true"></div>
+  <div class="stars stars2" aria-hidden="true"></div>
+
+  <!-- 顶部标题栏 -->
+  <header class="top-bar">
+    <div class="brand">
+      <span class="logo">✦</span>
+      <span class="title">Moon Chess</span>
+    </div>
+    <div class="actions" id="room-info">
+
+      <div class="room-meta">
+        <div class="room-code-wrap">房间号 <b id="room-code">--</b></div>
+        <a id="room-link" class="room-link" target="_blank" rel="noopener">链接</a>
+        <button class="btn-small" id="btn-copy">复制</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== 主菜单 ========== -->
+  <section id="menu" class="page show">
+    <div class="hero">
+      <div class="big-gem">
+        <svg viewBox="0 0 200 200">
+          <defs>
+            <radialGradient id="hero-g" cx="50%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#fff" stop-opacity=".8"/>
+              <stop offset="30%" stop-color="#ffc8ff"/>
+              <stop offset="65%" stop-color="#9d4edd"/>
+              <stop offset="100%" stop-color="#1a0033"/>
+            </radialGradient>
+            <filter id="hero-glow"><feGaussianBlur stdDeviation="6"/></filter>
+          </defs>
+          <polygon points="100,10 185,55 185,145 100,190 15,145 15,55" fill="url(#hero-g)" filter="url(#hero-glow)" opacity=".6"/>
+          <polygon points="100,20 175,60 175,140 100,180 25,140 25,60" fill="url(#hero-g)"/>
+        </svg>
+      </div>
+      <h1>月蚀棋</h1>
+      <p class="subtitle">Moon Chess · 三消易，四难留</p>
+      <p class="rules-hint">
+        类似井字棋，先连成三子者胜。但每方棋盘上最多只能有 <b>3 颗棋子</b>——
+        当你再下时，最早下的那颗会 <b>消逝</b>。
+      </p>
+    </div>
+
+    <div class="menu-buttons">
+      <button class="btn primary" id="btn-local">
+        <span class="btn-icon">✦</span> 单机对战
+      </button>
+      <button class="btn" id="btn-online-create">
+        <span class="btn-icon">◈</span> 创建联机房间
+      </button>
+      <button class="btn" id="btn-online-join">
+        <span class="btn-icon">◇</span> 加入房间
+      </button>
+    </div>
+
+    <footer class="footer">
+      <span>⚡ 三消者胜 · 满三者蚀最早</span>
+    </footer>
+  </section>
+
+  <!-- ========== 对局页面 ========== -->
+  <section id="game" class="page">
+    <div class="game-wrap">
+      <!-- 顶部信息 + 操作 -->
+      <div class="game-header">
+        <div id="turn-indicator" class="turn-indicator">你的回合</div>
+        <div class="game-actions">
+          <button class="btn btn-ghost" id="btn-restart" title="重新开始">↻ 重开</button>
+          <button class="btn btn-ghost" id="btn-exit" title="退出对局">✕ 退出</button>
+        </div>
+      </div>
+
+      <!-- 棋盘 -->
+      <div class="board-wrap">
+        <div class="board" id="board">
+          <div class="cell" data-row="0" data-col="0"></div>
+          <div class="cell" data-row="0" data-col="1"></div>
+          <div class="cell" data-row="0" data-col="2"></div>
+          <div class="cell" data-row="1" data-col="0"></div>
+          <div class="cell center" data-row="1" data-col="1"></div>
+          <div class="cell" data-row="1" data-col="2"></div>
+          <div class="cell" data-row="2" data-col="0"></div>
+          <div class="cell" data-row="2" data-col="1"></div>
+          <div class="cell" data-row="2" data-col="2"></div>
+          <!-- 背景装饰线 -->
+          <div class="grid-bg"></div>
+        </div>
+      </div>
+
+      <!-- 重开投票栏（联机） -->
+      <div class="rematch-bar" id="rematch-bar">
+
+        <div class="rematch-info">
+          重开投票：<span id="rematch-count">0/2</span> 已同意
+        </div>
+        <div class="rematch-buttons">
+          <button class="btn btn-small primary" id="btn-rematch-yes">同意</button>
+          <button class="btn btn-small btn-ghost" id="btn-rematch-no">撤回</button>
+        </div>
+      </div>
+
+      <button class="btn btn-small btn-ghost" id="btn-force-restart">
+强制重开</button>
+    </div>
+  </section>
+
+  <!-- ========== 选择难度 ========== -->
+  <div class="modal-mask" id="difficulty-select">
+
+    <div class="modal">
+      <h2>选择 AI 难度</h2>
+      <div class="diff-list">
+        <button class="diff-btn" id="diff-easy">
+          <span class="diff-emoji">🌙</span>
+          <span class="diff-name">简单</span>
+          <span class="diff-desc">AI 会下棋，但常常疏忽</span>
+        </button>
+        <button class="diff-btn" id="diff-normal">
+          <span class="diff-emoji">⭐</span>
+          <span class="diff-name">正常</span>
+          <span class="diff-desc">懂得堵截与制造威胁</span>
+        </button>
+        <button class="diff-btn" id="diff-hard">
+          <span class="diff-emoji">💫</span>
+          <span class="diff-name">困难</span>
+          <span class="diff-desc">每一步都在算 5 步之后</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 加入房间对话框 ========== -->
+  <div class="modal-mask" id="join-dialog">
+
+    <div class="modal">
+      <h2>加入房间</h2>
+      <p class="hint">输入 6 位房间号，或粘贴完整链接</p>
+      <input id="join-input" class="input" maxlength="64" placeholder="例如: ABC123 或 https://.../r/ABC123" />
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-join-cancel">取消</button>
+        <button class="btn primary" id="btn-join-confirm">加入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 结果对话框 ========== -->
+  <div class="modal-mask result-mask" id="result-overlay">
+
+    <div class="result-modal">
+      <div class="result-title" id="result-title">你赢了！</div>
+      <div class="result-buttons">
+        <button class="btn primary" id="btn-result-exit">返回菜单</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="js/ai.js" defer></script>
+  <script src="js/app.js" defer></script>
+</body>
+</html>
