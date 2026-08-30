@@ -461,23 +461,21 @@
   function passTurn(player, reason) {
     // Current side has no legal actions, skips turn. If consecutive passes ≥ 2, the game ends with majority.
     game.passLog.push({ player, reason, step: game.stepN });
-    game.stepN += 1;
     game.lastPass = true;
-    game.passes += 1;
+    game.passes = (game.passes || 0) + 1;
     game.current = player===P1?P2:P1;
     if (game.passes >= 2) {
       game.status = 'over';
       game.result = majorityResult('双方连续跳过（都无合法步）');
       return;
     }
-    // Check B / C immediate wins still? No. Pass never triggers win — only ends on 2x pass or full board.
     checkFullBoardEnd();
   }
 
   function afterAction(player, flipped, removed, wasPass) {
-    game.stepN += 1;
-    game.lastPass = false;
-    game.passes = 0;
+    if (!wasPass) game.stepN += 1;
+    game.lastPass = !!wasPass;
+    game.passes = (wasPass ? (game.passes || 0) + 1 : 0);
     const next = player===P1?P2:P1;
     game.current = next;
     const winInfo = checkWin();
@@ -487,34 +485,18 @@
       return;
     }
     checkFullBoardEnd();
-    // If current side has no legal actions: auto-pass
-    if (game.status === 'playing') {
+    // 若当前 side 无合法步 → 自动 PASS（stepN 不增加但进入对方回合）。最多循环一次，防止双方都没步造成无限 pass。
+    let guard = 0;
+    while (guard++ < 4 && game.status === 'playing') {
       const acts = listAllActions(game.current);
-      if (acts.length === 0) {
-        const skipSide = game.current;
-        game.passes += 1;
-        game.stepN += 1;
-        game.lastPass = true;
-        game.passLog.push({ player: skipSide, reason:'no-legal-actions', step: game.stepN });
-        game.current = skipSide===P1?P2:P1;
-        if (game.passes >= 2) { game.status = 'over'; game.result = majorityResult('双方连续跳过（都无合法步）'); return; }
-        checkFullBoardEnd();
-        // Now check the new side has legal actions; if also none, second pass above triggers via same code path — but we've incremented passes=1, so we need to loop
-        // Easier: run a fixed tiny loop (max 2 passes) here
-        let guard = 0;
-        while (guard++ < 4 && game.status==='playing') {
-          const acts2 = listAllActions(game.current);
-          if (acts2.length > 0) break;
-          const s2 = game.current;
-          game.passes += 1;
-          game.stepN += 1;
-          game.lastPass = true;
-          game.passLog.push({ player: s2, reason:'no-legal-actions(loop)', step: game.stepN });
-          game.current = s2===P1?P2:P1;
-          if (game.passes >= 2) { game.status='over'; game.result=majorityResult('双方连续跳过（都无合法步）'); return; }
-          checkFullBoardEnd();
-        }
-      }
+      if (acts.length > 0) break;
+      const skipSide = game.current;
+      game.passLog.push({ player: skipSide, reason: 'no-legal-actions', step: game.stepN });
+      game.lastPass = true;
+      game.passes = (game.passes || 0) + 1;
+      game.current = skipSide===P1?P2:P1;
+      if (game.passes >= 2) { game.status = 'over'; game.result = majorityResult('双方连续跳过（都无合法步）'); return; }
+      checkFullBoardEnd();
     }
   }
 
@@ -834,16 +816,14 @@
     const acts = listAllActions(player);
     if (acts.length === 0) {
       aiThinking = false;
-      // AI has no actions: auto-pass using game's standard pass logic (not direct end)
-      game.passes += 1;
-      game.stepN += 1;
+      // AI has no actions: auto-pass
+      game.passes = (game.passes || 0) + 1;
       game.lastPass = true;
       game.passLog.push({ player, reason:'AI-no-legal-actions', step: game.stepN });
       game.current = player===P1?P2:P1;
       if (game.passes >= 2) { game.status = 'over'; game.result = majorityResult('双方连续跳过（都无合法步）'); }
       checkFullBoardEnd();
       render();
-      // If it's now user's turn, just let them play. If again no actions for AI side? End will fire when passes=2
       return;
     }
 
