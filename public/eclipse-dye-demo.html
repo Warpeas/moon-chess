@@ -441,8 +441,8 @@
     const flipped = computeFlips(game.board, toR, toC, player);
     game.board[fromR][fromC] = savedF;
     game.board[toR][toC] = 0;
-    // 移动永远需要翻（相当于主动的夹击策略动作）；空开局特例也不给“移动不翻”。
-    if (flipped.length === 0) return { ok:false, reason:'must-flip' };
+    // 板上 <4 颗（热身阶段）：移动允许不翻；≥4 颗起强制翻转 ≥1 子
+    if (strictFlipRequired() && flipped.length === 0) return { ok:false, reason:'must-flip' };
 
     // commit move
     game.board[fromR][fromC] = 0;
@@ -459,7 +459,6 @@
     afterAction(player, flipped, removed, false);
     return { ok:true, flipped, removed };
   }
-
   function passTurn(player, reason) {
     // Current side has no legal actions, skips turn. If consecutive passes ≥ 2, the game ends with majority.
     game.passLog.push({ player, reason, step: game.stepN });
@@ -553,7 +552,7 @@
   }
 
   // ======================= Actions Enumeration (for AI & legal check) =======================
-  // 空开局的第一个放置（order 空）允许不翻；其余一律必须至少翻对方 1 子（移动永远要求翻）
+  // 空开局热身阶段：板上 <4 颗，place / move 均允许不翻；≥4 颗起严格强制翻转 ≥1 子
   function listAllActions(player) {
     const acts = [];
     const mustFlip = strictFlipRequired();
@@ -563,7 +562,7 @@
       if (mustFlip && flipped.length === 0) continue;
       acts.push({ kind:'place', r, c, flipCount: flipped.length, flips: flipped });
     }
-    // move — 永远需要翻
+    // move
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===player) {
       for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
         const saved = game.board[r][c];
@@ -572,7 +571,7 @@
         const flipped = computeFlips(game.board, nr, nc, player);
         game.board[r][c] = saved;
         game.board[nr][nc] = 0;
-        if (flipped.length === 0) continue;
+        if (mustFlip && flipped.length === 0) continue;
         acts.push({ kind:'move', fromR:r, fromC:c, r:nr, c:nc, flipCount: flipped.length, flips: flipped });
       }
     }
@@ -633,9 +632,11 @@
       }
       myPiecesMovable = new Set();
       for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===cfg.me) {
-        // any neighbor empty where moving yields ≥1 flip?
+        // 热身阶段 (<4颗)：只要有相邻空格就算可移动；否则必须翻子
         let movable=false;
         for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
+          if (game.board[nr][nc] !== 0) continue;
+          if (!mustFlip) { movable = true; break; }
           const saved = game.board[r][c];
           game.board[r][c]=0; game.board[nr][nc]=cfg.me;
           const fl = computeFlips(game.board, nr, nc, cfg.me);
@@ -650,6 +651,7 @@
         validMoveDestBySel[s] = new Set();
         for (const [nr,nc] of moveNeighbors(movingSel.r, movingSel.c, cfg.moveK)) {
           if (game.board[nr][nc]!==0) continue;
+          if (!mustFlip) { validMoveDestBySel[s].add(nr+','+nc); continue; }
           const saved = game.board[movingSel.r][movingSel.c];
           game.board[movingSel.r][movingSel.c]=0; game.board[nr][nc]=cfg.me;
           const fl = computeFlips(game.board, nr, nc, cfg.me);
@@ -727,13 +729,21 @@
     } else {
       const hasAny = (listAllActions(cfg.me).length > 0);
       if (!hasAny) {
-        hint.textContent = '⚠️ 本回合你没有合法步（放置/移动均无法翻转对方棋子），将自动跳过';
+        hint.textContent = strictFlipRequired()
+          ? '⚠️ 本回合你没有合法步（放置/移动均无法翻转对方棋子），将自动跳过'
+          : '⚠️ 本回合没有可放的空格或可动的棋子，将自动跳过';
       } else if (mode === 'place') {
-        hint.textContent = '放置模式：点带虚线框的空格落子 → 8方向夹击翻转对方';
+        hint.textContent = strictFlipRequired()
+          ? '放置模式：点带虚线框的空格落子 → 8方向夹击翻转对方'
+          : '放置模式：热身阶段 — 点任一带虚线框的空格占位（尚未启用夹击翻转门槛）';
       } else if (!movingSel) {
-        hint.textContent = '移动模式：点你的一颗棋子（必须有合法翻转的相邻空位）';
+        hint.textContent = strictFlipRequired()
+          ? '移动模式：点你的一颗棋子（移动后必须能翻转对方至少 1 子）'
+          : '移动模式：热身阶段 — 点你的一颗棋，再点相邻空格即可移动（无需夹击）';
       } else {
-        hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格执行移动翻转；再次点已选棋取消选择`;
+        hint.textContent = strictFlipRequired()
+          ? `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格执行移动翻转；再次点已选棋取消选择`
+          : `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格移动（热身无翻转门槛）；再次点已选棋取消选择`;
       }
     }
   }
@@ -751,12 +761,20 @@
     } else { // move
       if (!movingSel) {
         if (game.board[r][c] !== cfg.me) return;
-        if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋没有合法的移动翻转点（相邻格落位后必须能翻对方棋子）'); return; }
+        if (!pieceHasMoves(r,c,cfg.me)) {
+          flashHint(strictFlipRequired()
+            ? '这颗棋没有合法的移动翻转点（相邻格落位后必须能翻对方棋子）'
+            : '这颗棋没有相邻的空格可移动');
+          return;
+        }
         movingSel = {r,c}; render(); return;
       }
       if (movingSel.r===r && movingSel.c===c) { movingSel=null; render(); return; }
       if (game.board[r][c] === cfg.me) {
-        if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋无合法移动翻转点'); return; }
+        if (!pieceHasMoves(r,c,cfg.me)) {
+          flashHint(strictFlipRequired() ? '这颗棋无合法移动翻转点' : '这颗棋没有相邻空格可移动');
+          return;
+        }
         movingSel = {r,c}; render(); return;
       }
       if (!isDestOf(movingSel.r, movingSel.c, r, c)) { flashHint('目标格无效（必须是合法移动且能翻转对方至少1子）'); return; }
@@ -767,12 +785,13 @@
   }
 
   function pieceHasMoves(r,c,player) {
+    const mustFlip = strictFlipRequired();
     for (const [nr,nc] of moveNeighbors(r,c,cfg.moveK)) {
       const saved = game.board[r][c];
       game.board[r][c] = 0; game.board[nr][nc] = player;
       const fl = computeFlips(game.board, nr, nc, player);
       game.board[r][c] = saved; game.board[nr][nc] = 0;
-      if (fl.length>0) return true;
+      if (!mustFlip || fl.length>0) return true;
     }
     return false;
   }
@@ -784,7 +803,7 @@
     game.board[fr][fc] = 0; game.board[tr][tc] = cfg.me;
     const fl = computeFlips(game.board, tr, tc, cfg.me);
     game.board[fr][fc] = saved; game.board[tr][tc] = 0;
-    return fl.length > 0;
+    return strictFlipRequired() ? (fl.length > 0) : true;
   }
 
   function flashHint(t){ document.getElementById('hint').textContent = t; }
