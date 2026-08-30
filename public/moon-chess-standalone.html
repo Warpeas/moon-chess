@@ -1612,9 +1612,17 @@ const App = {
 
   clearAiTimer(alsoCancelPreview) {
     if (this.aiTimer) { clearTimeout(this.aiTimer); this.aiTimer = null; }
+    if (this._aiStepTimers && this._aiStepTimers.length) {
+      for (const t of this._aiStepTimers) clearTimeout(t);
+      this._aiStepTimers = null;
+    }
   },
   stopAiCandidateCycle() {
     if (this.aiCandidatesTimer) { clearInterval(this.aiCandidatesTimer); this.aiCandidatesTimer = null; }
+    if (this._aiStepTimers && this._aiStepTimers.length) {
+      for (const t of this._aiStepTimers) clearTimeout(t);
+      this._aiStepTimers = null;
+    }
     this.aiCandidates = [];
     this.aiCandidatesActiveIdx = 0;
   },
@@ -1963,33 +1971,19 @@ const App = {
     this.stopAiCandidateCycle();
     this.setBoardDisabled(true);
 
-    // ======== 节奏设计（用户核心：保证玩家至少看完 1.5 个"消失预警闪烁"周期） ========
-    // 预警闪烁 fadeBlink 周期 = 4s → 1.5 周期 = 6s；本实现整段 AI 动画 ≈ 6~8s
-    // 用户进一步要求：
-    //   1) 候选最多 2 个（1 个随机假位置 + 真实要下的位置）—— 3 个显慢
-    //   2) 切换到最后时，自然落脚点就等于 moveKey，不多做一次"最后切换动画"
+    // ======== 用户指定的严格时序（线性非循环）========
+    //   结构：[随机开始假位置, (1 个可选假位置), 实际要下的 moveKey]
+    //   数量：1-2 个假 + moveKey → 总候选 N = 2 或 3
+    //   时间：preStay（起始停留，把总时长撑到 6s+ 保证 1.5 个闪烁周期）
+    //         + (N-1) × cyclePeriod   ← 每段切到下一个候选，只切 1~2 下（不是几轮循环）
+    //         + 1 × freezeDuration = cyclePeriod  ← 定格在 moveKey 上按同样间隔
+    //         → 实际落下
     const aiTotalFloor = 6000;
-    const aiTotalJitter = Math.floor(Math.random() * 1700); // 0..1699
-    const aiTotalTime = aiTotalFloor + aiTotalJitter;  // 6.0..7.7s
-
-    // 候选切换间隔：1400-1600ms
-    const cyclePeriod = 1400 + Math.floor(Math.random() * 201);
-
-    // 定格：按设定的"同样间隔"（即 1 × cyclePeriod）
+    const aiTotalTime = aiTotalFloor + Math.floor(Math.random() * 1700); // 6000..7699
+    const cyclePeriod = 1400 + Math.floor(Math.random() * 201);          // 1400..1600
     const freezeDuration = cyclePeriod;
 
-    // 候选数量：1-2 个随机"假"位置 + 真实要下的位置 → 总数 2 或 3（用户修正："1-2个随机+实际位置"）
-    let emptyCount = 0;
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (this.local.board[r][c] === 0) emptyCount++;
-    const fakeCount = 1 + Math.floor(Math.random() * 2); // 1 或 2 个干扰位
-    const targetCount = Math.max(1, Math.min(1 + fakeCount, emptyCount));  // 总数 2 或 3；空格不够时收缩
-
-    // 切换阶段最少 3 轮（候选数由 3→2 后，3 轮约 4.2s 已经够玩家看清闪烁 + 切换，总时长 5.6+1.4=7s）
-    const minSwitchCycles = 3;
-    let switchCycles = Math.floor((aiTotalTime - freezeDuration) / cyclePeriod);
-    if (switchCycles < minSwitchCycles) switchCycles = minSwitchCycles;
-
-    // 同步计算 AI 真实着法
+    // === 1) 计算 AI 真实着法 ===
     const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
     if (!move) {
       this.clearAiTimer(true);
@@ -2000,32 +1994,61 @@ const App = {
     }
     const moveKey = `${move.row}-${move.col}`;
 
-    // 启动候选（1~2 个；必须包含 moveKey）
-    this.startAiCandidateCycle(this.local.board, moveKey, { targetCount, cyclePeriod });
-    this.render();
-
-    // ==== 关键：调整 switchCycles，让 N 轮切换后的 (0+S) % N 正好 = moveKey 的下标
-    //      → 最后一个位置自然就是要下的位置，不用额外再切一次
-    const N = this.aiCandidates.length;
-    const moveKeyIdx = this.aiCandidates.indexOf(moveKey);
-    if (N >= 1 && moveKeyIdx >= 0) {
-      const currentFinalAfterCycles = (0 + switchCycles) % N;
-      const delta = (moveKeyIdx - currentFinalAfterCycles + N) % N;
-      switchCycles += delta;
-    }
-    const thinkWaitTime = switchCycles * cyclePeriod;
-
-    this.aiTimer = setTimeout(() => {
-      // ===== 定格：此时 activeIdx 自然就是 moveKeyIdx，不再做一次"切换"渲染 =====
-      // （循环 setInterval 在 thinkWaitTime 里正好跑了 switchCycles 次，所以 (0+switchCycles)%N == moveKeyIdx）
-      // 为保险仍对齐一次（无视觉变化因为本来就对），然后直接进入定格
-      if (moveKeyIdx >= 0 && this.aiCandidatesActiveIdx !== moveKeyIdx) {
-        this.aiCandidatesActiveIdx = moveKeyIdx;
+    // === 2) 构造线性候选序列：[startFake, maybeFake, moveKey] — moveKey 永远在末尾 ===
+    const empties = [];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+      if (this.local.board[r][c] === 0) {
+        const k = `${r}-${c}`;
+        if (k !== moveKey) empties.push(k);
       }
-      this.render();
-      // 经过一个完整的 cyclePeriod 定格展示后 → 实际落下（按同样间隔）
+    }
+    // 打乱空格（不含 moveKey）
+    for (let i = empties.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [empties[i], empties[j]] = [empties[j], empties[i]];
+    }
+    // 假位置数：1 或 2（各 50%），受空格数限制
+    const maxFake = Math.max(0, Math.min(2, empties.length));
+    const fakeCount = Math.max(0, Math.min(maxFake, 1 + Math.floor(Math.random() * 2)));
+    const pickedFakes = empties.slice(0, fakeCount);
+    const candidates = [...pickedFakes, moveKey];   // 线性顺序：假→…→真
+    const N = candidates.length;                     // 2 或 3（只剩 1 空格时 N=1，也 OK）
+    const switches = N - 1;                          // 切换步数 = 1 或 2
+    this.aiCandidates = candidates;
+    this.aiCandidatesActiveIdx = 0;                  // T=0 显示第一个（随机开始假位置）
+    this.render();                                   // 触发 candidateIn 渐入
+
+    // === 3) 计算每段时长，保证 总时长 ≥ 6s ===
+    const switchesAndFreeze = switches * cyclePeriod + freezeDuration;
+    // preStay：起始位置停留的"思考缓冲"，把剩下的时间吃掉，避免多切几下才凑够 6s
+    let preStay = aiTotalTime - switchesAndFreeze;
+    if (preStay < 0) { // 极罕见（cyclePeriod 极大时），整体抬高 aiTotalTime
+      preStay = 0;
+    }
+    const arriveAtMoveKeyTime = preStay + switches * cyclePeriod;
+
+    // === 4) 线性排好每一次切换（1 或 2 下），每切一下只走下一个候选（非循环）===
+    this._aiStepTimers = [];
+    for (let k = 1; k <= switches; k++) {
+      const fireAt = preStay + k * cyclePeriod;
+      const stepIdx = k;   // 切到 candidates[k]；最后 k=switches 时 stepIdx=N-1=moveKey
+      const t = setTimeout(() => {
+        this.aiCandidatesActiveIdx = stepIdx;
+        this.render();
+      }, fireAt);
+      this._aiStepTimers.push(t);
+    }
+
+    // === 5) 最后到达 moveKey → 定格 → 落下 ===
+    this.aiTimer = setTimeout(() => {
+      // 保险：到达时 activeIdx 一定是 N-1 (moveKey)
+      if (this.aiCandidatesActiveIdx !== N - 1) {
+        this.aiCandidatesActiveIdx = N - 1;
+        this.render();
+      }
+      // 按同样间隔定格展示后落下
       this.aiTimer = setTimeout(() => {
-        this.stopAiCandidateCycle();
+        this.stopAiCandidateCycle();   // 清空 candidates/计时器
         const res = this.local.place(move.row, move.col, aiPlayerNum);
         this.aiTimer = null;
         this.state = this.local.snapshot();
@@ -2040,7 +2063,7 @@ const App = {
           this.scheduleAiMove(this.state.current);
         }
       }, freezeDuration);
-    }, thinkWaitTime);
+    }, arriveAtMoveKeyTime);
   },
 
   // 顶部重开 / 结束横幅「再来一局」共用
