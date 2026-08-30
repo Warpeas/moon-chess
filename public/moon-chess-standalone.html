@@ -1964,13 +1964,13 @@ const App = {
     this.setBoardDisabled(true);
 
     // ======== 节奏设计（用户核心：保证玩家至少看完 1.5 个"消失预警闪烁"周期） ========
-    // 预警闪烁 fadeBlink 周期 = 4s → 1.5 周期 = 6s；本实现整段 AI 动画 = 6.5~8.3s
-    // 流程：
-    //   T=0     玩家下完，渲染 pendingRemove.fading + 候选红圈（渐入 ~450ms，见 CSS candidateIn）
-    //   T+0~S   候选按 cyclePeriod 切来切去（至少 4 轮，营造"思考"）
-    //   T+S     切到真实落子位置（定格）
-    //   T+S+F   再经过一个同样的 cyclePeriod 后真正落下（用户要求"按间隔实际落下"）
-    const aiTotalTime = 6500 + Math.floor(Math.random() * 1800); // 6500..8299 ms (6.5..8.3s)
+    // 预警闪烁 fadeBlink 周期 = 4s → 1.5 周期 = 6s；本实现整段 AI 动画 ≈ 6~8s
+    // 用户进一步要求：
+    //   1) 候选最多 2 个（1 个随机假位置 + 真实要下的位置）—— 3 个显慢
+    //   2) 切换到最后时，自然落脚点就等于 moveKey，不多做一次"最后切换动画"
+    const aiTotalFloor = 6000;
+    const aiTotalJitter = Math.floor(Math.random() * 1700); // 0..1699
+    const aiTotalTime = aiTotalFloor + aiTotalJitter;  // 6.0..7.7s
 
     // 候选切换间隔：1400-1600ms
     const cyclePeriod = 1400 + Math.floor(Math.random() * 201);
@@ -1978,16 +1978,15 @@ const App = {
     // 定格：按设定的"同样间隔"（即 1 × cyclePeriod）
     const freezeDuration = cyclePeriod;
 
-    // 切换阶段至少 4 轮（保证"反复思考"的视觉感，也保证够长的总时长）
-    const minSwitchCycles = 4;
-    let switchCycles = Math.floor((aiTotalTime - freezeDuration) / cyclePeriod);
-    if (switchCycles < minSwitchCycles) switchCycles = minSwitchCycles;
-    const thinkWaitTime = switchCycles * cyclePeriod;
-
-    // 候选数量：1~3 随机（用户要求"候选切换1-3个位置"）
+    // 候选数量：最多 2 个（用户："最多两个+实际要下的位置"），即 1 个随机位置 + moveKey
     let emptyCount = 0;
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (this.local.board[r][c] === 0) emptyCount++;
-    const targetCount = Math.max(1, Math.min(3, Math.min(1 + Math.floor(Math.random() * 3), emptyCount)));
+    const targetCount = Math.max(1, Math.min(2, emptyCount));  // 最多 2，最少 1
+
+    // 切换阶段最少 3 轮（候选数由 3→2 后，3 轮约 4.2s 已经够玩家看清闪烁 + 切换，总时长 5.6+1.4=7s）
+    const minSwitchCycles = 3;
+    let switchCycles = Math.floor((aiTotalTime - freezeDuration) / cyclePeriod);
+    if (switchCycles < minSwitchCycles) switchCycles = minSwitchCycles;
 
     // 同步计算 AI 真实着法
     const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
@@ -2000,17 +1999,29 @@ const App = {
     }
     const moveKey = `${move.row}-${move.col}`;
 
-    // 启动候选（渐入由 CSS candidateIn 处理）
+    // 启动候选（1~2 个；必须包含 moveKey）
     this.startAiCandidateCycle(this.local.board, moveKey, { targetCount, cyclePeriod });
     this.render();
 
+    // ==== 关键：调整 switchCycles，让 N 轮切换后的 (0+S) % N 正好 = moveKey 的下标
+    //      → 最后一个位置自然就是要下的位置，不用额外再切一次
+    const N = this.aiCandidates.length;
+    const moveKeyIdx = this.aiCandidates.indexOf(moveKey);
+    if (N >= 1 && moveKeyIdx >= 0) {
+      const currentFinalAfterCycles = (0 + switchCycles) % N;
+      const delta = (moveKeyIdx - currentFinalAfterCycles + N) % N;
+      switchCycles += delta;
+    }
+    const thinkWaitTime = switchCycles * cyclePeriod;
+
     this.aiTimer = setTimeout(() => {
-      // ===== 定格：切换到真实落子位置 =====
-      const idx = this.aiCandidates.indexOf(moveKey);
-      if (idx >= 0) {
-        this.aiCandidatesActiveIdx = idx;
-        this.render();
+      // ===== 定格：此时 activeIdx 自然就是 moveKeyIdx，不再做一次"切换"渲染 =====
+      // （循环 setInterval 在 thinkWaitTime 里正好跑了 switchCycles 次，所以 (0+switchCycles)%N == moveKeyIdx）
+      // 为保险仍对齐一次（无视觉变化因为本来就对），然后直接进入定格
+      if (moveKeyIdx >= 0 && this.aiCandidatesActiveIdx !== moveKeyIdx) {
+        this.aiCandidatesActiveIdx = moveKeyIdx;
       }
+      this.render();
       // 经过一个完整的 cyclePeriod 定格展示后 → 实际落下（按同样间隔）
       this.aiTimer = setTimeout(() => {
         this.stopAiCandidateCycle();
