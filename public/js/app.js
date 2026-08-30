@@ -729,13 +729,12 @@ const App = {
     // ======== 用户指定的严格时序（线性非循环）========
     //   结构：[随机开始假位置, (1 个可选假位置), 实际要下的 moveKey]
     //   数量：1-2 个假 + moveKey → 总候选 N = 2 或 3
-    //   节奏：全流程统一用一个 cyclePeriod（心跳，1400-1600ms）
-    //         preStay(起始停留) = cyclePeriod
-    //         每次切换 = cyclePeriod，共 N-1 段
-    //         定格(最后到 moveKey 后停留) = cyclePeriod
-    //         → 一个 cyclePeriod 后立即落子（最后一段就播放一次）
+    //   节奏：
+    //     · 起始停留 = 0.4~0.6 × cyclePeriod（红圈刚渐入完就开始切，不滞重）
+    //     · 每次切换 = cyclePeriod（统一心跳 1400–1600ms）
+    //     · 定格(到 moveKey 后停留) = cyclePeriod（按用户要求"一个cyclePeriod后就落子"）
     const cyclePeriod = 1400 + Math.floor(Math.random() * 201);          // 1400..1600
-    const preStay = cyclePeriod;
+    const preStay = Math.floor(cyclePeriod * (0.4 + Math.random() * 0.2)); // 0.4~0.6 倍 ≈ 560~960ms
     const freezeDuration = cyclePeriod;
 
     // === 1) 计算 AI 真实着法 ===
