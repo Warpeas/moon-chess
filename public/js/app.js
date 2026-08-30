@@ -343,16 +343,17 @@ const App = {
     this.aiCandidatesActiveIdx = 0;
   },
   startAiCandidateCycle(boardArr, totalDelay, mustIncludeKey) {
-    // 从所有空格挑 2-3 个候选位置，循环切换红圈
+    // 从所有空格挑 2-3 个候选位置（最多 3 个），循环切换红圈
     // mustIncludeKey: "r-c"（真实 AI 将落子的位置）— 必须在候选中，保证最后一个高亮与实际落子一致
     const empties = [];
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (boardArr[r][c] === 0) empties.push(`${r}-${c}`);
-    if (empties.length === 0) return;
+    if (empties.length === 0) return 0;
     // Fisher-Yates
     for (let i = empties.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [empties[i], empties[j]] = [empties[j], empties[i]];
     }
+    // 候选最多 3 个（用户要求），最少 2 个保证有切换效果
     const targetN = Math.max(2, Math.min(3, empties.length));
     let picked = empties.slice(0, targetN);
     // 确保 mustIncludeKey 包含在内（如果提供且合法）
@@ -362,13 +363,15 @@ const App = {
     this.aiCandidates = picked;
     this.aiCandidatesActiveIdx = 0;
 
-    // 候选切换周期：调慢，总时间内约 2-3 次循环切换（最低 700ms，用户要求"跳得慢一点"）
+    // 候选切换周期：700-1100ms（用户要求跳慢）
     const cyclePeriod = Math.max(700, Math.min(1100, Math.floor(totalDelay / 4.2)));
     this.render();
     this.aiCandidatesTimer = setInterval(() => {
       this.aiCandidatesActiveIdx = (this.aiCandidatesActiveIdx + 1) % this.aiCandidates.length;
       this.render();
     }, cyclePeriod);
+    // 返回周期，供"定格间隔"使用（用户要求：切换间隔与定格间隔一致）
+    return cyclePeriod;
   },
 
   // ==================== 联机 ====================
@@ -690,19 +693,21 @@ const App = {
     }
     const moveKey = `${move.row}-${move.col}`;
 
-    // 启动候选红圈循环切换，并强制包含真实位置 moveKey
-    this.startAiCandidateCycle(this.local.board, totalDelay, moveKey);
+    // 启动候选红圈循环切换，并强制包含真实位置 moveKey；
+    // 返回候选切换周期 cyclePeriod，后续"定格在真实落点"的时间也要使用相同间隔（用户要求一致速度）
+    const cyclePeriod = this.startAiCandidateCycle(this.local.board, totalDelay, moveKey) || 800;
     this.render();
 
-    // 大部分时间用于候选切换动画；结束前定格在真实落子位置再下棋
+    // 候选切换时间 + 定格展示（定格时长 = 切换周期 cyclePeriod，与切换速度一致而非过快的 320ms）
+    const thinkWaitTime = Math.max(80, totalDelay - cyclePeriod);
     this.aiTimer = setTimeout(() => {
-      // 定格在真实落子点高亮（给用户一个“就下这里”的确认感）
+      // 定格在真实落子点高亮（给用户一个"就下这里"的确认感）
       const idx = this.aiCandidates.indexOf(moveKey);
       if (idx >= 0) {
         this.aiCandidatesActiveIdx = idx;
         this.render();
       }
-      // 稍等定格展示 300ms 后真正落子
+      // 定格展示时长 = 候选切换周期 cyclePeriod（切换间隔和落子间隔一致）
       this.aiTimer = setTimeout(() => {
         this.stopAiCandidateCycle();
         const res = this.local.place(move.row, move.col, aiPlayerNum);
@@ -717,8 +722,8 @@ const App = {
         if (this.state.current !== humanPlayer) {
           this.scheduleAiMove(this.state.current);
         }
-      }, 320);
-    }, totalDelay - 320);
+      }, cyclePeriod);
+    }, thinkWaitTime);
   },
 
   // 顶部重开 / 结束横幅「再来一局」共用

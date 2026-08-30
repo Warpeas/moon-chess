@@ -600,15 +600,15 @@ body::after {
   100% { transform: scale(1) translateY(0); }
 }
 
-/* 消失预告闪烁（棋子自身的动画；用户要求速度调慢 — 2.2s 周期） */
+/* 消失预告闪烁（棋子自身的动画；用户要求调大到 4s 周期） */
 .piece.fading {
-  animation: fadeBlink 2.2s ease-in-out infinite;
+  animation: fadeBlink 4s ease-in-out infinite;
   filter: drop-shadow(0 0 16px rgba(255, 80, 130, 0.8));
 }
 @keyframes fadeBlink {
   0%, 100% { opacity: 1;    transform: scale(1); }
-  28%      { opacity: 0.32; transform: scale(0.85); }
-  52%      { opacity: 1;    transform: scale(1.02); }
+  26%      { opacity: 0.32; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.02); }
   76%      { opacity: 0.55; transform: scale(0.96); }
 }
 
