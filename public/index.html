@@ -1,220 +1,190 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#0d1b2a" />
-  <title>Moon Chess · 月蚀棋</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2242%22 fill=%22%237b2cbf%22/><circle cx=%2235%22 cy=%2235%22 r=%2222%22 fill=%22%230d1b2a%22/></svg>" />
-  <link rel="stylesheet" href="css/style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0821" />
+<title>Moon Chess · 月蚀棋 · 模式选择</title>
+<style>
+  :root {
+    --bg-0: #05041a;
+    --bg-1: #0e0c2c;
+    --bg-2: #1a1544;
+    --line: rgba(190,170,255,.22);
+    --text: #f2edff;
+    --sub: #a9a1d8;
+    --p1: #ffd9ee; --p1-glow: #ff78c8;
+    --p2: #7a71ff; --p2-glow: #8cc6ff;
+    --accent: #ff5577;
+    --ok: #51e898;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;min-height:100%;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #2a2370 0%, #130f3a 45%, var(--bg-0) 80%);
+  }
+  .stars{position:fixed;inset:0;pointer-events:none;opacity:.6;z-index:0;
+    background:
+      radial-gradient(1px 1px at 10% 20%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 30% 80%, #fff 99%, transparent),
+      radial-gradient(1.5px 1.5px at 60% 40%, #d9cfff 99%, transparent),
+      radial-gradient(1px 1px at 80% 10%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 70% 75%, #fff 99%, transparent),
+      radial-gradient(1.5px 1.5px at 20% 55%, #c8b6ff 99%, transparent),
+      radial-gradient(1px 1px at 50% 15%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 90% 60%, #d9cfff 99%, transparent);
+    background-size:500px 500px;
+    animation:drift 180s linear infinite;
+  }
+  @keyframes drift { to{ transform:translate(-200px,-120px); } }
+  .wrap{position:relative;z-index:1;max-width:640px;margin:0 auto;padding:28px 18px 40px}
+  header{text-align:center;margin:8px 0 22px}
+  .brand{display:inline-flex;align-items:center;gap:10px}
+  .logo{width:36px;height:36px;border-radius:10px;
+    background:conic-gradient(from 40deg, #ffd9ee, #ff78c8, #7a71ff, #8cc6ff, #ffd9ee);
+    filter:saturate(1.1);position:relative}
+  .logo::after{content:"";position:absolute;inset:4px;border-radius:7px;background:#0e0c2c;box-shadow:inset 0 0 12px rgba(0,0,0,.4)}
+  h1{margin:10px 0 4px;font-size:26px;letter-spacing:2px}
+  .sub{color:var(--sub);font-size:13px}
+  .cards{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+  .card{position:relative;background:linear-gradient(180deg,rgba(26,21,68,.85),rgba(14,12,44,.78));
+    border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;cursor:pointer;
+    box-shadow:0 10px 26px rgba(0,0,0,.35);transition:all .18s ease;overflow:hidden}
+  .card:hover{transform:translateY(-2px);border-color:rgba(255,120,200,.45)}
+  .card::before{content:"";position:absolute;inset:-1px;border-radius:16px;pointer-events:none;opacity:0;
+    background:linear-gradient(120deg,rgba(255,120,200,.35),rgba(122,113,255,.3),transparent 60%);transition:opacity .2s ease}
+  .card:hover::before{opacity:1}
+  .row{display:flex;align-items:center;gap:14px}
+  .thumb{width:78px;height:78px;flex-shrink:0;border-radius:14px;background:
+    linear-gradient(135deg,#1f1a4d,#2a2466);border:1px solid var(--line);
+    display:grid;place-items:center;padding:12px}
+  .board-mini{width:100%;height:100%;display:grid;gap:3px}
+  .board-mini.b3{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr)}
+  .board-mini.b4{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr)}
+  .mc{border-radius:4px;background:rgba(160,150,220,.12);position:relative}
+  .mc.p1::after{content:"";position:absolute;inset:12%;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, #fff 0%, var(--p1) 55%, var(--p1-glow) 100%);
+    box-shadow:0 0 8px rgba(255,120,200,.5)}
+  .mc.p2::after{content:"";position:absolute;inset:12%;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, #d6f1ff 0%, var(--p2) 55%, var(--p2-glow) 100%);
+    box-shadow:0 0 8px rgba(122,113,255,.55)}
+  .mc.warn::after{animation:warn 1s steps(2,end) infinite}
+  @keyframes warn { 0%,50%{opacity:.18} 50.01%,100%{opacity:1} }
+  .meta{flex:1;min-width:0}
+  .title{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(122,113,255,.2);color:#c9c3ff;border:1px solid rgba(122,113,255,.35)}
+  .badge.a{background:rgba(81,232,152,.14);color:#9df3c7;border-color:rgba(81,232,152,.3)}
+  .badge.b{background:rgba(255,120,200,.14);color:#ffc8e7;border-color:rgba(255,120,200,.3)}
+  .desc{color:var(--sub);font-size:13px;line-height:1.6;margin-top:6px}
+  .cta{display:inline-block;margin-top:10px;padding:6px 12px;border-radius:10px;
+    background:linear-gradient(180deg,#ff7a97,#e53f66);color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;
+    box-shadow:0 6px 14px rgba(229,63,102,.25)}
+  .foot{margin-top:24px;text-align:center;color:var(--sub);font-size:12px}
+  @media (max-width:380px){
+    .thumb{width:66px;height:66px}
+    .title{font-size:16px}
+  }
+</style>
 </head>
 <body>
-  <!-- 星空背景 -->
-  <div class="stars" aria-hidden="true"></div>
-  <div class="stars stars2" aria-hidden="true"></div>
-
-  <!-- 顶部标题栏 -->
-  <header class="top-bar">
-    <div class="brand">
-      <span class="logo">✦</span>
-      <span class="title">Moon Chess</span>
-    </div>
-    <div class="actions" id="room-info">
-
-      <div class="room-meta">
-        <div class="room-code-wrap">房间号 <b id="room-code">--</b></div>
-        <a id="room-link" class="room-link" target="_blank" rel="noopener">链接</a>
-        <button class="btn-small" id="btn-copy">复制</button>
-      </div>
-    </div>
+<div class="stars"></div>
+<div class="wrap">
+  <header>
+    <div class="brand"><div class="logo"></div><span style="font-weight:700;letter-spacing:2px">Moon Chess</span></div>
+    <h1>🌓 月蚀棋 · 模式选择</h1>
+    <div class="sub">三种规则。同一棋盘美学。点击卡片进入对应规则对局。</div>
   </header>
 
-  <!-- ========== 主菜单 ========== -->
-  <section id="menu" class="page show">
-    <div class="hero">
-      <div class="big-gem">
-        <svg viewBox="0 0 200 200">
-          <defs>
-            <radialGradient id="hero-g" cx="50%" cy="35%" r="70%">
-              <stop offset="0%" stop-color="#fff" stop-opacity=".8"/>
-              <stop offset="30%" stop-color="#ffc8ff"/>
-              <stop offset="65%" stop-color="#9d4edd"/>
-              <stop offset="100%" stop-color="#1a0033"/>
-            </radialGradient>
-            <filter id="hero-glow"><feGaussianBlur stdDeviation="6"/></filter>
-          </defs>
-          <polygon points="100,10 185,55 185,145 100,190 15,145 15,55" fill="url(#hero-g)" filter="url(#hero-glow)" opacity=".6"/>
-          <polygon points="100,20 175,60 175,140 100,180 25,140 25,60" fill="url(#hero-g)"/>
-        </svg>
-      </div>
-      <h1>月蚀棋</h1>
-      <p class="subtitle">Moon Chess · 满五者，蚀最古</p>
-      <p class="rules-hint">
-        类似井字棋，先连成三子者胜。但棋盘上总共最多同时有 <b>5 颗棋子</b>——
-        当第 6 颗落下时，全场最早落子的那一颗会 <b>消逝</b>。
-      </p>
-    </div>
+  <div class="cards" id="cards"></div>
 
-    <div class="menu-buttons">
-      <button class="btn primary" id="btn-local">
-        <span class="btn-icon">✦</span> 单机对战
-      </button>
-      <button class="btn" id="btn-online-create">
-        <span class="btn-icon">◈</span> 创建联机房间
-      </button>
-      <button class="btn" id="btn-online-join">
-        <span class="btn-icon">◇</span> 加入房间
-      </button>
-    </div>
+  <div class="foot">· Warpeas · GitHub Pages 根路由模式选择 · moon-chess ·</div>
+</div>
 
-    <footer class="footer">
-      <span>⚡ 三消者胜 · 满五者蚀最古</span>
-    </footer>
-  </section>
+<script>
+(() => {
+  const cards = [
+    {
+      id: 'yuanshen',
+      tag: 'A · 原神原版',
+      cls: 'a',
+      title: '原神原版月亮棋',
+      short: '3×3 · 先连 3 子胜 · 每方最多 3 颗，己方回合己方最早子闪烁，放新子后消失',
+      href: 'moon-chess-standalone.html?m=yuanshen',
+      preview: [
+        [1,0,0],
+        [2,1,0],
+        [2,0,0],
+      ],
+      // mark "own oldest" on P1 turn. P1 order: (0,0) then (1,1); P2 order: (1,0) then (2,0); P1 has 2, P2 has 2; no warning yet. Build instead: P1=3 pieces.
+      warn: null,
+    },
+    {
+      id: 'movable',
+      tag: 'B · 原版 + 可移动',
+      cls: 'b',
+      title: '原版 + 可移动',
+      short: '原神原版基础上增加「移动」操作：己方棋子 4 邻到空格，也算一次操作；其它完全不变',
+      href: 'moon-chess-standalone.html?m=movable',
+      preview: [
+        [1,2,0],
+        [0,1,2],
+        [2,0,1],
+      ],
+      warn: null,
+    },
+    {
+      id: 'dye',
+      tag: 'C · 染色版',
+      cls: '',
+      title: '染色版（蚀染）',
+      short: '夹击翻子、子多者胜；开局可选 3×3 / 4×4 与 4/8 邻移动；对局内随时切换 4/8 邻',
+      href: 'eclipse-dye-demo.html',
+      preview: [
+        [1,2,2,1],
+        [2,1,1,2],
+        [2,1,1,2],
+        [1,2,2,1],
+      ],
+      warn: null,
+    },
+  ];
 
-  <!-- ========== 对局页面 ========== -->
-  <section id="game" class="page">
-    <div class="game-wrap">
-      <!-- 顶部信息 + 操作 -->
-      <div class="game-header">
-        <div id="turn-indicator" class="turn-indicator">你的回合</div>
-        <div class="game-actions">
-          <button class="btn btn-ghost" id="btn-restart" title="重新开始">↻ 重开</button>
-          <button class="btn btn-ghost" id="btn-exit" title="退出对局">✕ 退出</button>
+  // Set preview A so we demonstrate the "闪烁" = oldest piece of turn side.
+  // Turn assumed = P1 (white). P1 oldest = (0,0) -> mark warn.
+  cards[0].preview = [
+    [1, 2, 0],
+    [2, 1, 0],
+    [1, 0, 2],
+  ];
+  cards[0].warn = '0,0'; // P1 oldest blink on P1's turn; this player already placed 3; P2 also 3 -> both oldest blink? spec: each side blinks own oldest if own side >=3 AND it's own action. Let's mark one.
+
+  function makeMini(data, warn) {
+    const n = data.length;
+    const cells = [];
+    const warnKey = warn || '';
+    for (let r=0;r<n;r++) for (let c=0;c<n;c++) {
+      const v = data[r][c];
+      const cls = 'mc' + (v===1?' p1':v===2?' p2':'') + (warnKey===(r+','+c)?' warn':'');
+      cells.push('<div class="'+cls+'"></div>');
+    }
+    return `<div class="board-mini b${n}">${cells.join('')}</div>`;
+  }
+
+  const root = document.getElementById('cards');
+  root.innerHTML = cards.map(c => `
+    <a class="card" href="${c.href}" style="text-decoration:none;color:inherit">
+      <div class="row">
+        <div class="thumb">${makeMini(c.preview, c.warn)}</div>
+        <div class="meta">
+          <div class="title">${c.title}<span class="badge ${c.cls}">${c.tag}</span></div>
+          <div class="desc">${c.short}</div>
+          <div class="cta">进入 ▸</div>
         </div>
       </div>
-
-      <!-- 结束结果横幅（替代原先全屏弹窗；棋盘禁用） -->
-      <div class="end-banner" id="end-banner" hidden>
-        <div class="end-title" id="end-title">你赢了！</div>
-        <div class="end-actions">
-          <button class="btn btn-small" id="btn-end-again">再来一局</button>
-          <button class="btn btn-small primary" id="btn-end-menu">返回菜单</button>
-        </div>
-      </div>
-
-      <!-- 棋盘 -->
-      <div class="board-wrap">
-        <div class="board" id="board">
-          <div class="cell" data-row="0" data-col="0"></div>
-          <div class="cell" data-row="0" data-col="1"></div>
-          <div class="cell" data-row="0" data-col="2"></div>
-          <div class="cell" data-row="1" data-col="0"></div>
-          <div class="cell center" data-row="1" data-col="1"></div>
-          <div class="cell" data-row="1" data-col="2"></div>
-          <div class="cell" data-row="2" data-col="0"></div>
-          <div class="cell" data-row="2" data-col="1"></div>
-          <div class="cell" data-row="2" data-col="2"></div>
-          <!-- 背景装饰线 -->
-          <div class="grid-bg"></div>
-        </div>
-      </div>
-
-      <!-- 重开投票栏（仅联机显示，单机不显示） -->
-      <div class="rematch-bar" id="rematch-bar">
-        <div class="rematch-info" id="rematch-info">等待房主发起重开…</div>
-        <div class="rematch-buttons">
-          <button class="btn btn-small primary" id="btn-rematch-yes">同意</button>
-          <button class="btn btn-small btn-ghost" id="btn-rematch-no">撤回</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ========== 选择难度 ========== -->
-  <div class="modal-mask" id="difficulty-select">
-
-    <div class="modal">
-      <h2>选择 AI 难度</h2>
-      <div class="diff-list">
-        <button class="diff-btn" id="diff-easy">
-          <span class="diff-emoji">🌙</span>
-          <span class="diff-name">简单</span>
-          <span class="diff-desc">AI 会下棋，但常常疏忽</span>
-        </button>
-        <button class="diff-btn" id="diff-normal">
-          <span class="diff-emoji">⭐</span>
-          <span class="diff-name">正常</span>
-          <span class="diff-desc">懂得堵截与制造威胁</span>
-        </button>
-        <button class="diff-btn" id="diff-hard">
-          <span class="diff-emoji">💫</span>
-          <span class="diff-name">困难</span>
-          <span class="diff-desc">每一步都在算 5 步之后</span>
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== 选择执白 / 执黑（先后手） ========== -->
-  <div class="modal-mask" id="side-select">
-    <div class="modal">
-      <h2>选择先后手</h2>
-      <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
-      <div class="diff-list">
-        <button class="diff-btn" id="side-white">
-          <span class="diff-emoji" aria-hidden="true">
-            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
-              <radialGradient id="s-w" cx="48%" cy="36%" r="68%">
-                <stop offset="0%" stop-color="#ffffff"/><stop offset="35%" stop-color="#fff0fa"/>
-                <stop offset="60%" stop-color="#ffc3de"/><stop offset="85%" stop-color="#ff8fc7"/><stop offset="100%" stop-color="#c97bff"/>
-              </radialGradient></defs>
-              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-w)" stroke="#ffd8ec" stroke-opacity="0.75" stroke-width="1.4"/>
-              <polygon points="50,10 68,30 50,44 32,30" fill="#ffffff" fill-opacity="0.55"/>
-              <circle cx="46" cy="40" r="3.4" fill="#ffffff" fill-opacity="0.95"/></svg>
-          </span>
-          <span class="diff-name">执粉白（先手）</span>
-          <span class="diff-desc">你用粉白棋，开局第一步由你下</span>
-        </button>
-        <button class="diff-btn" id="side-black">
-          <span class="diff-emoji" aria-hidden="true">
-            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
-              <radialGradient id="s-b" cx="50%" cy="34%" r="70%">
-                <stop offset="0%" stop-color="#e9efff"/><stop offset="30%" stop-color="#8fb3ff"/>
-                <stop offset="60%" stop-color="#7a5bff"/><stop offset="85%" stop-color="#4a2bc7"/><stop offset="100%" stop-color="#241070"/>
-              </radialGradient></defs>
-              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-b)" stroke="#c0b8ff" stroke-opacity="0.72" stroke-width="1.4"/>
-              <polygon points="50,10 68,30 50,44 32,30" fill="#d7e6ff" fill-opacity="0.4"/>
-              <circle cx="46" cy="40" r="3" fill="#e9f2ff" fill-opacity="0.9"/></svg>
-          </span>
-          <span class="diff-name">执紫蓝（后手）</span>
-          <span class="diff-desc">你用紫蓝棋，开局由 AI 先走粉白棋</span>
-        </button>
-      </div>
-      <div class="modal-actions" style="justify-content:center">
-        <button class="btn btn-ghost" id="side-back">← 返回选择难度</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== 加入房间对话框 ========== -->
-  <div class="modal-mask" id="join-dialog">
-
-    <div class="modal">
-      <h2>加入房间</h2>
-      <p class="hint">输入 6 位房间号，或粘贴完整链接</p>
-      <input id="join-input" class="input" maxlength="64" placeholder="例如: ABC123 或 https://.../r/ABC123" />
-      <div class="modal-actions">
-        <button class="btn btn-ghost" id="btn-join-cancel">取消</button>
-        <button class="btn primary" id="btn-join-confirm">加入</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- ========== 通用确认对话框（单机重开确认 / 其它需要用户确认的动作） ========== -->
-  <div class="modal-mask confirm-mask" id="confirm-dialog" hidden>
-    <div class="modal">
-      <div class="confirm-title" id="confirm-title">确认重新开始？</div>
-      <div class="confirm-desc" id="confirm-desc">当前局的进度会被清空，确定要开始新的一局吗？</div>
-      <div class="confirm-actions">
-        <button class="btn btn-ghost" id="btn-confirm-no">取消</button>
-        <button class="btn primary" id="btn-confirm-yes">确认</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/socket.io/socket.io.js" defer></script>
-  <script src="js/ai.js" defer></script>
-  <script src="js/app.js" defer></script>
+    </a>
+  `).join('');
+})();
+</script>
 </body>
 </html>

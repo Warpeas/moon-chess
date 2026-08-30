@@ -111,6 +111,11 @@
   @keyframes removePulse {
     0%,100% { opacity: .5; } 50% { opacity: 1; }
   }
+  .piece.sliding{ animation: slideMove 320ms cubic-bezier(.25,1.4,.5,1) both; }
+  @keyframes slideMove {
+    from { transform: translate(calc(var(--dx,0) * -100%), calc(var(--dy,0) * -100%)); opacity: .55; }
+    to   { transform: translate(0,0); opacity: 1; }
+  }
   .cell.disabled { cursor: not-allowed; }
   .cell.ending::after {
     content: ''; position: absolute; inset: 12%; border-radius: 8px;
@@ -164,6 +169,14 @@
     <div class="sub">4×4 · 空棋盘开局 · 放置/移动均可 · 夹击染子（可选是否触发） · 子多者胜</div>
 
     <div class="card">
+      <div class="grp-title">棋盘大小</div>
+      <div class="opts" id="sizeOpts">
+        <div class="opt" data-v="3"><div class="t">3 × 3</div><div class="d">快节奏</div></div>
+        <div class="opt active" data-v="4"><div class="t">4 × 4</div><div class="d">原版</div></div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="grp-title">移动范围</div>
       <div class="opts" id="moveOpts">
         <div class="opt active" data-v="4"><div class="t">4 邻</div><div class="d">上下左右</div></div>
@@ -189,7 +202,7 @@
 
     <button class="btn" id="btnStart">▶ 开始对局</button>
     <div style="height:8px"></div>
-    <button class="btn ghost" id="btnBack">← 返回正式版</button>
+    <button class="btn ghost" id="btnBack">← 返回模式选择</button>
 
     <div style="height:20px"></div>
     <div class="legend card">
@@ -220,6 +233,7 @@
     </div>
 
     <div class="actions">
+      <div class="tab" id="btnInGameMove4" title="切换 4 邻/8 邻移动范围">🧭 移动: 4 邻</div>
       <div style="flex:1"></div>
       <div class="tab" id="btnRematch">🔄 重开</div>
       <div class="tab" id="btnExit">↩️ 改设定</div>
@@ -245,7 +259,8 @@
 (() => {
   'use strict';
   // ======================= Constants =======================
-  const SIZE = 4;
+  const QP = new URLSearchParams(location.search);
+  let SIZE = parseInt(QP.get('s'),10)===3 ? 3 : 4;   // 可在开局 & URL中改
   const P1 = 1, P2 = 2;
   const DIRS = [
     [-1,-1],[-1,0],[-1,1],
@@ -254,11 +269,12 @@
   ];
 
   // ======================= State =======================
-  let cfg = null;          // { moveK: 4|8, diff: 'easy'|'std', me: 1|2 }
+  let cfg = null;          // { size:3|4, moveK: 4|8, diff: 'easy'|'std', me: 1|2 }
   let game = null;         // game state
   let movingSel = null;    // {r,c} if user picked own piece for move
   let aiThinking = false;
   let aiTimer = null;
+  let slideInfo = null;    // {fromR,fromC,toR,toC} for slide animation
 
   // ======================= Setup UI =======================
   function optPicker(id, cb) {
@@ -272,21 +288,55 @@
       });
     });
   }
-  optPicker('moveOpts'); optPicker('diffOpts'); optPicker('sideOpts');
+  // 若 URL 带 ?s=3 开局默认 3x3
+  if(SIZE===3){
+    const root = document.getElementById('sizeOpts');
+    root.querySelectorAll('.opt').forEach(o=>o.classList.toggle('active', o.dataset.v==='3'));
+  }
+  optPicker('moveOpts'); optPicker('diffOpts'); optPicker('sideOpts'); optPicker('sizeOpts');
 
   function activeVal(id) { return document.querySelector('#'+id+' .opt.active').dataset.v; }
 
   document.getElementById('btnStart').addEventListener('click', () => {
+    const size = parseInt(activeVal('sizeOpts'),10);
     const moveK = parseInt(activeVal('moveOpts'),10);
     const diff = activeVal('diffOpts');
     const me = parseInt(activeVal('sideOpts'),10);
-    cfg = { moveK, diff, me };
-    document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${moveK}邻移动 · 不消失 · 空棋盘开局`;
+    SIZE = size;
+    cfg = { size, moveK, diff, me };
+    document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${size}×${size} · ${moveK}邻移动 · 不消失 · 空棋盘开局`;
     document.getElementById('gameLegend').innerHTML =
-      `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${moveK} 邻。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+      `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${moveK} 邻（对局内可切换）。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+    const sub = document.querySelector('#setup .sub');
+    if (sub) sub.textContent = `${size}×${size} · 空棋盘开局 · 放置/移动均可 · 夹击染子（可选是否触发） · 子多者胜`;
     document.getElementById('setup').style.display = 'none';
     document.getElementById('game').style.display = 'block';
+    syncInGameMoveBtn();
     startGame();
+  });
+  document.getElementById('btnBack').addEventListener('click', ()=>{ location.href='index.html'; });
+
+  // 对局内切换 4 邻 / 8 邻
+  const inGameMoveBtn = document.getElementById('btnInGameMove4');
+  function syncInGameMoveBtn(){
+    if(!cfg) return;
+    inGameMoveBtn.textContent = `🧭 移动: ${cfg.moveK} 邻`;
+  }
+  inGameMoveBtn.addEventListener('click', () => {
+    if(!cfg) return;
+    cfg.moveK = cfg.moveK===4 ? 8 : 4;
+    // 若当前处于 movingSel，合法目标列表刷新
+    if(movingSel){
+      // 若新 moveK 下该选子无合法邻居，取消选中
+      if(moveNeighbors(movingSel.r, movingSel.c, cfg.moveK).length===0) movingSel = null;
+    }
+    if(game && cfg){
+      document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${cfg.size}×${cfg.size} · ${cfg.moveK}邻移动 · 不消失 · 空棋盘开局`;
+      document.getElementById('gameLegend').innerHTML =
+        `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${cfg.moveK} 邻（对局内可切换）。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+    }
+    syncInGameMoveBtn();
+    if(game) render();
   });
 
   // ======================= Game Logic =======================
@@ -481,6 +531,15 @@
         if (v !== 0) {
           const p = document.createElement('div');
           p.className = 'piece ' + (v===P1?'p1':'p2');
+          // slide move animation: if this cell is the destination of a recent move
+          if (slideInfo && slideInfo.toR===r && slideInfo.toC===c) {
+            const dx = slideInfo.toC - slideInfo.fromC;
+            const dy = slideInfo.toR - slideInfo.fromR;
+            p.style.setProperty('--dx', dx.toFixed(1));
+            p.style.setProperty('--dy', dy.toFixed(1));
+            p.classList.add('sliding');
+            setTimeout(()=>{ p.classList.remove('sliding'); p.style.removeProperty('--dx'); p.style.removeProperty('--dy'); }, 360);
+          }
           el.appendChild(p);
         }
         el.dataset._k = key;
@@ -581,13 +640,19 @@
   function flashHint(t){ document.getElementById('hint').textContent = t; }
 
   function performUserAction(fn) {
+    slideInfo = null;
     const res = fn();
     if (!res || !res.ok) {
       flashHint('无法执行这一步');
       return;
     }
+    // 设置滑动动画信息：移动动作携带 fromR/fromC
+    if (res.fromR !== undefined && res.toR !== undefined) {
+      slideInfo = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC };
+    }
     const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
     render({ flipSet });
+    slideInfo = null;
     if (game.status === 'over') return;
     if (game.current !== cfg.me) scheduleAI();
   }
@@ -665,15 +730,26 @@
 
     // Execute chosen
     let res;
+    slideInfo = null;
     if (chosen.kind === 'place') res = doPlace(chosen.r, chosen.c, player);
     else res = doMove(chosen.fromR, chosen.fromC, chosen.r, chosen.c, player);
+    if (res && res.ok && res.fromR !== undefined && res.toR !== undefined) {
+      slideInfo = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC };
+    }
     aiThinking = false;
     const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
     render({ flipSet });
+    slideInfo = null;
   }
 
   function posScore(r,c) {
-    // center 4 cells (1,1),(1,2),(2,1),(2,2) best -> 5; corners -> 3; edges -> 2
+    if (SIZE === 3) {
+      // center (1,1) -> 5; corners -> 3; edges -> 2
+      if (r===1 && c===1) return 5;
+      if ((r===0||r===2) && (c===0||c===2)) return 3;
+      return 2;
+    }
+    // SIZE=4
     const centerR = (r===1||r===2), centerC=(c===1||c===2);
     if (centerR && centerC) return 5;
     if ((r===0||r===SIZE-1) && (c===0||c===SIZE-1)) return 3;
@@ -724,6 +800,7 @@
     game = newGame();
     movingSel = null;
     aiThinking = false;
+    slideInfo = null;
     clearTimeout(aiTimer);
     buildBoardDOM();
     render();
