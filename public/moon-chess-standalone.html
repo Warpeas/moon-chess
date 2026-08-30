@@ -1978,10 +1978,11 @@ const App = {
     // 定格：按设定的"同样间隔"（即 1 × cyclePeriod）
     const freezeDuration = cyclePeriod;
 
-    // 候选数量：最多 2 个（用户："最多两个+实际要下的位置"），即 1 个随机位置 + moveKey
+    // 候选数量：1-2 个随机"假"位置 + 真实要下的位置 → 总数 2 或 3（用户修正："1-2个随机+实际位置"）
     let emptyCount = 0;
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (this.local.board[r][c] === 0) emptyCount++;
-    const targetCount = Math.max(1, Math.min(2, emptyCount));  // 最多 2，最少 1
+    const fakeCount = 1 + Math.floor(Math.random() * 2); // 1 或 2 个干扰位
+    const targetCount = Math.max(1, Math.min(1 + fakeCount, emptyCount));  // 总数 2 或 3；空格不够时收缩
 
     // 切换阶段最少 3 轮（候选数由 3→2 后，3 轮约 4.2s 已经够玩家看清闪烁 + 切换，总时长 5.6+1.4=7s）
     const minSwitchCycles = 3;
