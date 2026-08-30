@@ -122,6 +122,35 @@ const App = {
   // 渲染所需快照
   state: null,
 
+  // 棋子即将被移除时的"视觉幽灵"（逻辑已移除，但画面再做 600ms 淡出动画）
+  // 格式: { player, row, col, timerId }
+  visualRemoving: null,
+
+  // 管理移除动画：在逻辑已经移除棋子后，再挂一个视觉幽灵，等动画结束再消失
+  stageRemovingVisual(removed) {
+    if (!removed) return;
+    // 如果已有一个正在移除的（极端情况），直接清掉
+    this.clearRemovingVisual(false);
+    const info = { ...removed };
+    const that = this;
+    info.timerId = setTimeout(() => {
+      that.clearRemovingVisual(true);
+    }, 620);
+    this.visualRemoving = info;
+  },
+  clearRemovingVisual(needRender) {
+    if (this.visualRemoving && this.visualRemoving.timerId) {
+      clearTimeout(this.visualRemoving.timerId);
+    }
+    this.visualRemoving = null;
+    if (needRender) this.render();
+  },
+  // 清空所有单元格的渲染签名缓存（开局/重开/切模式时调用，强制整盘重绘）
+  _resetCellRenderKeys() {
+    const all = document.querySelectorAll('.cell');
+    all.forEach((el) => { delete el.dataset._k; });
+  },
+
   // ==================== 初始化 ====================
   init() {
     const path = location.pathname;
@@ -287,6 +316,8 @@ const App = {
     this.clearAiTimer(true);
     this.aiCandidates = [];
     this.stopAiCandidateCycle();
+    this.clearRemovingVisual(false);          // 清理上局残留的消失动画
+    this._resetCellRenderKeys();              // 清除单元格渲染缓存，保证开局重绘
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
     safeGet('menu')?.classList.remove('show');
     safeGet('difficulty-select')?.classList.remove('show');
@@ -653,6 +684,8 @@ const App = {
       const res = this.local.place(row, col, humanPlayer);
       if (!res.ok) return;
       this.state = this.local.snapshot();
+      // 落子后有棋子消失，挂视觉幽灵播放淡出动画（逻辑已移除）
+      if (res.removed) this.stageRemovingVisual(res.removed);
       this.updateRestartButton();
       this.render();
 
@@ -693,26 +726,29 @@ const App = {
     }
     const moveKey = `${move.row}-${move.col}`;
 
-    // 启动候选红圈循环切换，并强制包含真实位置 moveKey；
-    // 返回候选切换周期 cyclePeriod，后续"定格在真实落点"的时间也要使用相同间隔（用户要求一致速度）
-    const cyclePeriod = this.startAiCandidateCycle(this.local.board, totalDelay, moveKey) || 800;
+    // 启动候选红圈循环切换，并强制包含真实位置 moveKey
+    this.startAiCandidateCycle(this.local.board, totalDelay, moveKey);
     this.render();
 
-    // 候选切换时间 + 定格展示（定格时长 = 切换周期 cyclePeriod，与切换速度一致而非过快的 320ms）
-    const thinkWaitTime = Math.max(80, totalDelay - cyclePeriod);
+    // 定格时长：用户要求 1500-2000ms 动态范围（不再使用切换周期等比；独立更长）
+    const freezeDuration = 1500 + Math.floor(Math.random() * 501); // 1500..2000 ms
+    // 前半段做候选切换；如果总时长不够容纳定格，就直接进入定格（保证定格至少 1500ms）
+    const thinkWaitTime = Math.max(0, totalDelay - freezeDuration);
     this.aiTimer = setTimeout(() => {
-      // 定格在真实落子点高亮（给用户一个"就下这里"的确认感）
+      // 定格在真实落子点高亮
       const idx = this.aiCandidates.indexOf(moveKey);
       if (idx >= 0) {
         this.aiCandidatesActiveIdx = idx;
         this.render();
       }
-      // 定格展示时长 = 候选切换周期 cyclePeriod（切换间隔和落子间隔一致）
+      // 定格 1500-2000ms 后真正落子
       this.aiTimer = setTimeout(() => {
         this.stopAiCandidateCycle();
         const res = this.local.place(move.row, move.col, aiPlayerNum);
         this.aiTimer = null;
         this.state = this.local.snapshot();
+        // 落子后有棋子消失，挂视觉幽灵播放淡出动画（逻辑已移除）
+        if (res && res.removed) this.stageRemovingVisual(res.removed);
         this.setBoardDisabled(false);
         this.updateRestartButton();
         this.render();
@@ -722,7 +758,7 @@ const App = {
         if (this.state.current !== humanPlayer) {
           this.scheduleAiMove(this.state.current);
         }
-      }, cyclePeriod);
+      }, freezeDuration);
     }, thinkWaitTime);
   },
 
@@ -736,6 +772,8 @@ const App = {
         onYes: () => {
           this.clearAiTimer(true);
           this.stopAiCandidateCycle();
+          this.clearRemovingVisual(false);
+          this._resetCellRenderKeys();
           this.local.reset();
           this.state = this.local.snapshot();
           this.hideEndBanner();
@@ -794,45 +832,78 @@ const App = {
   render() {
     if (!this.state) return;
 
+    // ===== 每个单元格使用"渲染签名 + 缓存"，只在内容真正变化时重建 DOM
+    // 目的：AI 候选切换动画时，不变的棋子（尤其是带 .fading 闪烁动画的）不会被销毁重建 → 动画流畅不卡
+    const pendingRemove = this.state.pendingRemove;
+    const visualR = this.visualRemoving;
     const cells = document.querySelectorAll('.cell');
     cells.forEach((el) => {
       const row = parseInt(el.dataset.row, 10);
       const col = parseInt(el.dataset.col, 10);
       const v = this.state.board[row][col];
-      el.className = 'cell';
+
+      // 计算本单元格"应渲染内容"的唯一签名 key
+      // 形式: piece-p1-fading  /  piece-p2-removing  /  cand-active  /  cand-dim  /  empty  /  win
+      let key;
+      if (v !== 0) {
+        key = 'p'; // 有棋
+        const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
+        key += v + (isFading ? '-F' : '');
+      } else {
+        // 空棋格
+        if (visualR && visualR.row === row && visualR.col === col) {
+          key = 'g' + visualR.player; // ghost 幽灵消失棋
+        } else if (this.mode === 'local' && this.aiCandidates.length > 0) {
+          const candIdx = this.aiCandidates.indexOf(`${row}-${col}`);
+          if (candIdx > -1) {
+            const active = (candIdx === this.aiCandidatesActiveIdx);
+            key = active ? 'cA' : 'cD'; // candidate Active / Dim
+          } else {
+            key = 'e'; // empty
+          }
+        } else {
+          key = 'e'; // empty
+        }
+      }
+
+      // 签名没变 → DOM 可以保留（例如只切AI候选active/dim在别的格子，不影响这里的闪烁棋子）
+      // 例外：候选 dim→active / active→dim 也需要更新，这个已经包含在 key ('cA' vs 'cD') 中
+      if (el.dataset._k === key) return;
+      el.dataset._k = key;
+
+      // 真正需要重绘时才清空并重写
       el.innerHTML = '';
 
       if (v !== 0) {
         const piece = document.createElement('div');
-        // p1 = 粉白（先手），p2 = 紫蓝（后手）对应 CSS 颜色
         piece.className = 'piece p' + v;
-        // 最早棋子闪烁：按 pendingRemove 精确标记棋子本体（不加单元格红框）
-        const pr = this.state.pendingRemove;
-        if (pr && pr.row === row && pr.col === col) {
-          piece.classList.add('fading');
-        }
+        const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
+        if (isFading) piece.classList.add('fading');
         piece.classList.add('drop');
         requestAnimationFrame(() => piece.classList.remove('drop'));
         piece.innerHTML = this._gemSVG(v);
         el.appendChild(piece);
-      } else {
-        // 空格：AI 思考中，显示候选红圈（多个候选 + 当前激活一个高亮放大）
-        if (this.mode === 'local' && this.aiCandidates.length > 0) {
-          const key = `${row}-${col}`;
-          const candIdx = this.aiCandidates.indexOf(key);
-          if (candIdx > -1) {
-            const cv = document.createElement('div');
-            const active = (candIdx === this.aiCandidatesActiveIdx);
-            cv.className = 'think-candidate ' + (active ? 'active' : 'dim');
-            el.appendChild(cv);
-          }
+      } else if (visualR && visualR.row === row && visualR.col === col) {
+        // 逻辑上已消失的棋子，再播放一次 600ms 淡出动画作为视觉过渡
+        const piece = document.createElement('div');
+        piece.className = 'piece p' + visualR.player + ' removing-out';
+        piece.innerHTML = this._gemSVG(visualR.player);
+        el.appendChild(piece);
+      } else if (this.mode === 'local' && this.aiCandidates.length > 0) {
+        const candIdx = this.aiCandidates.indexOf(`${row}-${col}`);
+        if (candIdx > -1) {
+          const cv = document.createElement('div');
+          const active = (candIdx === this.aiCandidatesActiveIdx);
+          cv.className = 'think-candidate ' + (active ? 'active' : 'dim');
+          el.appendChild(cv);
         }
       }
     });
 
-    // 高亮赢线（仍保留，用户没说去掉赢线高亮）
+    // 赢线（.win 类）属于单元格额外状态，与签名解耦，单独刷新
+    // 先清除，再加
+    cells.forEach((el) => el.classList.remove('win'));
     const winLine = this.state.winLine;
-    document.querySelectorAll('.cell').forEach((el) => el.classList.remove('win'));
     if (winLine && this.state.status === 'ended') {
       for (const [r, c] of winLine) {
         const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
