@@ -373,10 +373,12 @@
 
   // 是否应该启用“必须至少翻 1 子”的合法性检查：
   // - 翻转棋标准开局（center4）：全程启用
-  // - 空棋盘开局：只有“双方都还没下（order 空）”的第一子跳过；第 2 子起正常启用
+  // - 空棋盘开局：板上棋数 < 4 时（热身 1~3 颗，还不存在"己→敌→己"的合法夹击）一律免强制翻；≥4 颗后正常强制
   function strictFlipRequired() {
     if (cfg.opening === 'center4') return true;
-    return game.order.length >= 1;
+    let n = 0;
+    for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE; c++) if (game.board[r][c] !== 0) n++;
+    return n >= 4;
   }
 
   function inBounds(r,c){ return r>=0&&r<SIZE&&c>=0&&c<SIZE; }
