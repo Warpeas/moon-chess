@@ -1,0 +1,1741 @@
+<!doctype html>
+<html lang="zh-CN">
+<head> charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0d1b2a" />
+  <title>蚀染模式 · Moon Chess Eclipse Dye</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2242%22 fill=%22%237b2cbf%22/><circle cx=%2235%22 cy=%2235%22 r=%2222%22 fill=%22%230d1b2a%22/></svg>" />
+  <style>
+
+/* ============ 基础样式 ============ */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root {
+  --bg-0: #04060f;
+  --bg-1: #0a0f22;
+  --bg-2: #101a3a;
+  --accent: #9d4edd;
+  --accent-2: #7b2cbf;
+  --accent-3: #c77dff;
+  --cool-blue: #4cc9f0;
+  --soft-blue: #4895ef;
+  --text: #e8ecff;
+  --text-dim: #aab3d6;
+  --board-line: rgba(200, 220, 255, 0.28);
+  --cell-hi: rgba(200, 220, 255, 0.12);
+  --shadow: 0 10px 40px rgba(0,0,0,0.55);
+  --radius: 16px;
+}
+
+html, body {
+  margin: 0; padding: 0; width: 100%; height: 100%;
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  color: var(--text);
+  background: radial-gradient(ellipse at top, #1b1040 0%, var(--bg-1) 35%, var(--bg-0) 100%);
+  overflow: hidden;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 核心规则：.page 必须有 .show 才显示 */
+#menu.page,
+#game.page { display: none; }
+#menu.page.show,
+#game.page.show { display: flex; }
+
+/* room-info 控制 */
+#room-info { display: none; }
+#room-info.show { display: flex; }
+
+/* rematch-bar 默认隐藏（display:none 仅由 .show 规则切换为 flex） */
+.rematch-bar { display: none; }
+.rematch-bar.show {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 强制重开按钮默认隐藏 */
+#btn-force-restart { display: none; }
+#btn-force-restart.show { display: inline-flex; }
+
+/* ============ 星空背景 ============ */
+.stars {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(1px 1px at 20% 30%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 80% 10%, #fff 99%, transparent),
+    radial-gradient(1.5px 1.5px at 50% 60%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 30% 80%, #fff 99%, transparent),
+    radial-gradient(2px 2px at 70% 40%, #c8b6ff 99%, transparent),
+    radial-gradient(1px 1px at 10% 70%, #c8b6ff 99%, transparent),
+    radial-gradient(1px 1px at 90% 85%, #fff 99%, transparent),
+    radial-gradient(1.5px 1.5px at 60% 20%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 40% 50%, #fff 99%, transparent),
+    radial-gradient(1px 1px at 15% 15%, #c8b6ff 99%, transparent);
+  background-size: 400px 400px;
+  opacity: 0.7;
+  animation: starDrift 120s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+.stars2 {
+  background-size: 550px 550px;
+  opacity: 0.4;
+  animation-duration: 200s;
+  animation-direction: reverse;
+}
+@keyframes starDrift {
+  0% { transform: translate3d(0,0,0); }
+  100% { transform: translate3d(-200px,-100px,0); }
+}
+
+/* 飘浮的荧光装饰 */
+body::before, body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #7b2cbf, transparent 70%);
+  top: -150px; left: -150px;
+  animation: floatA 14s ease-in-out infinite;
+}
+body::after {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #4cc9f0, transparent 70%);
+  bottom: -120px; right: -120px;
+  animation: floatB 16s ease-in-out infinite;
+}
+@keyframes floatA {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(80px, 60px) scale(1.15); }
+}
+@keyframes floatB {
+  0%,100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(-60px,-50px) scale(1.1); }
+}
+
+/* ============ 顶栏 ============ */
+.top-bar {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  gap: 12px;
+}
+.brand {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600;
+}
+.brand .logo {
+  font-size: 22px;
+  color: var(--accent-3);
+  filter: drop-shadow(0 0 6px var(--accent-3));
+  animation: twinkle 2.5s ease-in-out infinite;
+}
+@keyframes twinkle {
+  0%,100% { opacity: 1; filter: drop-shadow(0 0 6px var(--accent-3)); }
+  50% { opacity: 0.5; filter: drop-shadow(0 0 12px var(--accent-3)); }
+}
+.brand .title {
+  font-size: 18px;
+  letter-spacing: 2px;
+  background: linear-gradient(90deg, var(--accent-3), var(--cool-blue));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.room-meta {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  font-size: 12px;
+}
+.room-code-wrap b { color: var(--accent-3); letter-spacing: 3px; font-weight: 700; }
+.room-link {
+  color: var(--cool-blue);
+  text-decoration: none;
+  max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.room-link:hover { text-decoration: underline; }
+
+/* ============ 主菜单 ============ */
+.page {
+  position: relative; z-index: 5;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 16px;
+}
+
+.hero {
+  text-align: center;
+  max-width: 480px;
+  padding: 20px;
+}
+.big-gem {
+  width: 140px; height: 140px;
+  margin: 0 auto 16px;
+  animation: gemRotate 12s linear infinite;
+  filter: drop-shadow(0 0 30px rgba(157,78,221,0.6));
+}
+@keyframes gemRotate {
+  0% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+  100% { transform: rotate(-6deg); }
+}
+.big-gem svg { width: 100%; height: 100%; }
+
+.hero h1 {
+  margin: 0; font-size: 42px; letter-spacing: 6px;
+  background: linear-gradient(135deg, #fff 0%, var(--accent-3) 40%, var(--cool-blue) 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 40px rgba(157,78,221,0.3);
+}
+.subtitle {
+  margin: 6px 0 14px;
+  color: var(--text-dim);
+  letter-spacing: 3px;
+  font-size: 13px;
+}
+.rules-hint {
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.7;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+}
+.rules-hint b { color: var(--accent-3); }
+
+.menu-buttons {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 28px; width: 100%; max-width: 320px;
+}
+
+.footer {
+  margin-top: 24px;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 2px;
+  opacity: 0.7;
+}
+
+/* ============ 按钮 ============ */
+.btn {
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 14px 22px;
+  border-radius: var(--radius);
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  font-size: 15px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.2s, box-shadow 0.2s, border-color 0.2s;
+  backdrop-filter: blur(10px);
+  font-family: inherit;
+}
+.btn:hover {
+  background: rgba(255,255,255,0.12);
+  transform: translateY(-2px);
+  border-color: rgba(199,125,255,0.5);
+}
+.btn:active { transform: translateY(0); }
+.btn.primary {
+  background: linear-gradient(135deg, var(--accent-2), var(--accent-3));
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 6px 24px rgba(123,44,191,0.45);
+}
+.btn.primary:hover {
+  box-shadow: 0 10px 32px rgba(123,44,191,0.6);
+}
+.btn.btn-ghost {
+  background: transparent;
+  border-color: rgba(255,255,255,0.15);
+  color: var(--text-dim);
+}
+.btn.btn-ghost:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+.btn.btn-small { padding: 8px 14px; font-size: 13px; }
+.btn-small {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px 10px; font-size: 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn-small:hover { color: var(--text); }
+
+.btn-icon { font-size: 18px; }
+
+/* ============ 对局页面 ============ */
+.game-wrap {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 20px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.game-header {
+  width: 100%;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 16px;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+}
+.game-header .turn-indicator {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.game-header .game-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+.game-header .game-actions .btn {
+  padding: 10px 14px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 嵌入 turn-indicator 内的迷你棋子图标 */
+.mini-gem {
+  width: 20px; height: 20px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.turn-indicator.ended {
+  color: #fff;
+  background: linear-gradient(90deg, rgba(157,78,221,0.35), rgba(76,201,240,0.3));
+  border-color: rgba(199,125,255,0.4);
+  text-shadow: 0 0 10px rgba(255, 220, 255, 0.7);
+  font-weight: 700;
+}
+
+.turn-indicator {
+  font-size: 16px; letter-spacing: 1px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(8px);
+}
+.turn-indicator.white { color: #ffe6f3; text-shadow: 0 0 8px rgba(255,155,210,0.72); }
+.turn-indicator.black { color: #d7cdff; text-shadow: 0 0 8px rgba(150,130,255,0.68); }
+/* 兼容保留 p1/p2 */
+.turn-indicator.p1 { color: #ffe6f3; text-shadow: 0 0 8px rgba(255,155,210,0.72); }
+.turn-indicator.p2 { color: #d7cdff; text-shadow: 0 0 8px rgba(150,130,255,0.68); }
+
+.game-actions { display: flex; gap: 8px; }
+
+/* 棋盘容器 */
+.board-wrap {
+  display: flex; justify-content: center; align-items: center;
+  position: relative;
+}
+
+.board {
+  position: relative;
+  width: min(82vw, 520px);
+  height: min(82vw, 520px);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 2px;
+  padding: 10px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    radial-gradient(circle at center, rgba(157,78,221,0.18), transparent 70%);
+  border: 1px solid rgba(200,220,255,0.15);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 30px 80px rgba(0,0,0,0.6),
+    0 0 60px rgba(76,201,240,0.08),
+    0 0 80px rgba(157,78,221,0.12);
+  backdrop-filter: blur(12px);
+}
+
+/* 棋盘背景魔法线 */
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 24px;
+  background:
+    linear-gradient(to right, transparent calc(33.33% - 0.5px), var(--board-line) calc(33.33%), var(--board-line) calc(33.33% + 0.5px), transparent calc(33.33% + 1px)),
+    linear-gradient(to right, transparent calc(66.66% - 0.5px), var(--board-line) calc(66.66%), var(--board-line) calc(66.66% + 0.5px), transparent calc(66.66% + 1px)),
+    linear-gradient(to bottom, transparent calc(33.33% - 0.5px), var(--board-line) calc(33.33%), var(--board-line) calc(33.33% + 0.5px), transparent calc(33.33% + 1px)),
+    linear-gradient(to bottom, transparent calc(66.66% - 0.5px), var(--board-line) calc(66.66%), var(--board-line) calc(66.66% + 0.5px), transparent calc(66.66% + 1px));
+  animation: linePulse 4s ease-in-out infinite;
+}
+@keyframes linePulse {
+  0%,100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* 单元格 */
+.cell {
+  position: relative;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.cell:hover:not(:has(.piece)) {
+  background: var(--cell-hi);
+}
+.cell.win .piece {
+  animation: winGlow 0.9s ease-in-out infinite;
+}
+@keyframes winGlow {
+  0%,100% { filter: brightness(1.1); }
+  50% { filter: brightness(1.6) drop-shadow(0 0 18px #fff); transform: scale(1.08); }
+}
+
+/* 游戏结束/对方思考时：整个棋盘点击禁用且降低可交互感 */
+.board.disabled .cell { cursor: not-allowed; pointer-events: none; }
+.board.disabled::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(4,6,15,0.18);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* AI 下子预览（思考时，AI 计划落子的空格显示半透明虚子） */
+.cell .preview-move {
+  position: absolute;
+  inset: 14%;
+  border-radius: 14px;
+  opacity: 0.45;
+  animation: previewPulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+.cell .preview-move.p2::before {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255,255,255,0.7) 0%, rgba(200,182,255,0.8) 35%, rgba(123,44,191,0.55) 70%, rgba(36,0,70,0.25) 100%);
+  box-shadow: 0 0 14px rgba(76,201,240,0.35), 0 0 24px rgba(157,78,221,0.35);
+}
+.cell .preview-move.p1::before {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 35%, rgba(255,255,255,0.7) 0%, rgba(255,216,240,0.85) 35%, rgba(199,125,255,0.6) 70%, rgba(90,24,154,0.28) 100%);
+  box-shadow: 0 0 14px rgba(255,120,220,0.4), 0 0 24px rgba(157,78,221,0.35);
+}
+@keyframes previewPulse {
+  0%,100% { opacity: 0.28; transform: scale(0.92); }
+  50% { opacity: 0.58; transform: scale(1.02); }
+}
+
+/* 上一手落点（玩家/AI 刚落子的地方做一个彩色光圈留存，直到下一步发生） */
+.cell.last-move::before {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 0 0 2px rgba(76,201,240,0.55),
+    0 0 14px rgba(76,201,240,0.35);
+  pointer-events: none;
+  animation: lastMoveGlow 1.8s ease-in-out infinite;
+}
+@keyframes lastMoveGlow {
+  0%,100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* 「即将消失的棋子」更强烈的警示：棋子 + 单元格都高亮（玩家能一眼看出这步一落就哪颗会被吃掉） */
+.cell.marked-to-remove {
+  background: radial-gradient(circle at center, rgba(255, 80, 120, 0.30), rgba(255, 80, 120, 0.02) 65%);
+}
+.cell.marked-to-remove::after {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: 14px;
+  border: 2px dashed rgba(255, 90, 130, 0.9);
+  box-shadow: 0 0 18px rgba(255, 90, 130, 0.65) inset, 0 0 24px rgba(255, 90, 130, 0.35);
+  pointer-events: none;
+  animation: markedRemoveBlink 1.2s ease-in-out infinite;
+}
+@keyframes markedRemoveBlink {
+  0%,100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+/* 结束结果 banner（替代旧的 result-overlay 大弹窗）：顶部贴在棋盘正上方，渐变大字 + 次按钮 */
+.end-banner {
+  width: 100%;
+  max-width: 520px;
+  margin: 4px auto 10px;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(157,78,221,0.45), rgba(36,0,70,0.75));
+  border: 1px solid rgba(200,220,255,0.18);
+  box-shadow: 0 0 22px rgba(157,78,221,0.4);
+  display: none;
+  align-items: center; justify-content: space-between;
+  gap: 12px;
+  color: var(--text);
+}
+.end-banner.show { display: flex; }
+.end-banner .end-title {
+  font-size: 18px;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+.end-banner .end-title.win  { color: #ffd5ff; text-shadow: 0 0 10px rgba(255,120,220,0.8); }
+.end-banner .end-title.lose { color: #bcd8ff; text-shadow: 0 0 10px rgba(76,201,240,0.7); }
+.end-banner .end-title.draw { color: var(--text-dim); }
+.end-banner .end-actions { display: flex; gap: 8px; }
+
+/* 确认弹窗（单机重开确认） */
+.confirm-mask .confirm-actions { display: flex; justify-content: center; gap: 10px; margin-top: 18px; }
+.confirm-title { font-size: 18px; letter-spacing: 2px; margin-bottom: 6px; }
+.confirm-desc { color: var(--text-dim); font-size: 13px; line-height: 1.6; }
+.confirm-desc:empty { display: none; }
+
+/* 思考标签（在 turn-indicator 右侧补一小点动态） */
+.turn-indicator .thinking-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  margin: 0 0 2px 8px;
+  vertical-align: middle;
+  box-shadow: 0 0 10px currentColor;
+  animation: dotBlink 1s steps(2,end) infinite;
+}
+@keyframes dotBlink { 50% { opacity: 0.15; } }
+
+/* 棋子 */
+.piece {
+  width: 72%; height: 72%;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: opacity 0.25s;
+}
+.piece .gem {
+  width: 100%; height: 100%;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+}
+.piece.p1 .gem { animation: pulseP1 2.2s ease-in-out infinite; }
+.piece.p2 .gem { animation: pulseP2 2.4s ease-in-out infinite; }
+
+/* P1 = 先手 · 粉白棋：粉+青紫脉冲辉光 */
+@keyframes pulseP1 {
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.55)) drop-shadow(0 0 6px rgba(255,150,210,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 18px rgba(198,150,255,0.78)); }
+}
+/* P2 = 后手 · 紫蓝棋：蓝紫渐变呼吸光晕 */
+@keyframes pulseP2 {
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 5px rgba(110,92,255,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
+}
+
+/* ========== AI 思考候选红圈（1~2 个假 + 真实末尾，线性 1~2 下切换） ========== */
+.cell .think-candidate {
+  position: absolute;
+  inset: 20%;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 70, 90, 0.35);
+  pointer-events: none;
+  transition: all 0.25s ease;
+}
+.cell .think-candidate.dim {
+  opacity: 0.28;
+  transform: scale(0.82);
+  border-color: rgba(255, 70, 90, 0.28);
+}
+.cell .think-candidate.active {
+  opacity: 1;
+  transform: scale(1.02);
+  border-color: rgba(255, 70, 90, 0.9);
+  box-shadow:
+    0 0 14px rgba(255, 70, 90, 0.5),
+    inset 0 0 10px rgba(255, 70, 90, 0.28);
+  animation: candidatePulse 1.6s ease-in-out infinite;
+}
+@keyframes candidatePulse {
+  0%,100% { transform: scale(1.02); opacity: 0.88; }
+  50%     { transform: scale(1.14); opacity: 1;    }
+}
+
+/* 落子动效 */
+.piece.drop {
+  animation: dropIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes dropIn {
+  0% { transform: scale(0.2) translateY(-12px); opacity: 0; }
+  60% { transform: scale(1.15) translateY(2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); }
+}
+
+/* 消失预告闪烁（棋子自身的动画；用户要求调大到 4s 周期） */
+.piece.fading {
+  animation: fadeBlink 4s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(255, 80, 130, 0.8));
+}
+@keyframes fadeBlink {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  26%      { opacity: 0.32; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.02); }
+  76%      { opacity: 0.55; transform: scale(0.96); }
+}
+
+/* 落子后"真正消失"的视觉过渡：逻辑已清，这里做 600ms 淡出+缩放+红光消散
+   注意：只播一次（forwards），不重复 */
+.piece.removing-out {
+  animation: removeFadeOut 600ms cubic-bezier(0.4, 0, 0.8, 1) forwards;
+}
+@keyframes removeFadeOut {
+  0%   { opacity: 1;    transform: scale(1);    filter: drop-shadow(0 0 10px rgba(255, 80, 130, 0.55)); }
+  55%  { opacity: 0.45; transform: scale(0.9);  filter: drop-shadow(0 0 18px rgba(255, 80, 130, 0.9)); }
+  100% { opacity: 0;    transform: scale(0.55); filter: drop-shadow(0 0 24px rgba(255, 80, 130, 0.25)); }
+}
+
+/* ============ 重开投票条 ============ */
+.rematch-bar {
+  width: 100%; max-width: 480px;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius);
+  backdrop-filter: blur(8px);
+  /* display / justify-content / align-items 由 .show 规则控制（见顶部），避免覆盖 display:none */
+}
+.rematch-info { color: var(--text-dim); font-size: 13px; letter-spacing: 1px; }
+.rematch-buttons { display: flex; gap: 8px; }
+
+/* ============ 模态框 ============ */
+.modal-mask {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  background: rgba(4,6,15,0.75);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity 0.25s, visibility 0.25s;
+}
+.modal-mask.show {
+  opacity: 1; visibility: visible; pointer-events: auto;
+}
+.modal-mask[hidden] { display: none !important; }
+
+.modal {
+  min-width: 320px; max-width: 92vw;
+  padding: 28px 24px;
+  background: linear-gradient(180deg, rgba(26,10,64,0.9), rgba(10,15,34,0.95));
+  border: 1px solid rgba(200,220,255,0.18);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(123,44,191,0.2);
+  text-align: center;
+}
+.modal h2 {
+  margin: 0 0 8px;
+  font-size: 22px; letter-spacing: 3px;
+  background: linear-gradient(90deg, var(--accent-3), var(--cool-blue));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+.modal .hint {
+  color: var(--text-dim); font-size: 12px; margin: 6px 0 18px;
+}
+.modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px;
+}
+
+.input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 16px; letter-spacing: 2px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(200,220,255,0.2);
+  color: var(--text);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.input:focus {
+  border-color: var(--accent-3);
+  box-shadow: 0 0 0 3px rgba(199,125,255,0.2);
+}
+
+/* 难度选择 */
+.diff-list {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-top: 18px;
+}
+.diff-btn {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s, background 0.2s, border-color 0.2s;
+  font-family: inherit;
+}
+.diff-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(199,125,255,0.1);
+  border-color: rgba(199,125,255,0.5);
+}
+.diff-emoji { font-size: 28px; }
+.diff-name { font-size: 16px; font-weight: 600; }
+.diff-desc { color: var(--text-dim); font-size: 12px; margin-top: 2px; }
+
+/* 结果弹窗 */
+.result-mask {
+  z-index: 60;
+}
+.result-modal {
+  padding: 40px 40px;
+  background: linear-gradient(180deg, rgba(26,10,64,0.95), rgba(10,15,34,0.98));
+  border: 1px solid rgba(200,220,255,0.2);
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(0,0,0,0.7), 0 0 60px rgba(157,78,221,0.3);
+  text-align: center;
+  animation: resultPop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes resultPop {
+  0% { transform: scale(0.6); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.result-title {
+  font-size: 32px;
+  letter-spacing: 4px;
+  background: linear-gradient(90deg, #fff, var(--accent-3), var(--cool-blue));
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  margin-bottom: 22px;
+}
+.result-buttons {
+  display: flex; justify-content: center; gap: 12px;
+}
+
+/* ============ 竖屏适配 ============ */
+@media (max-width: 480px) {
+  .hero h1 { font-size: 36px; }
+  .big-gem { width: 110px; height: 110px; }
+  .board { width: min(88vw, 420px); height: min(88vw, 420px); padding: 8px; gap: 2px; border-radius: 18px; }
+  .cell { border-radius: 10px; }
+  .turn-indicator { font-size: 14px; padding: 8px 14px; letter-spacing: 1px; }
+  .brand .title { font-size: 16px; }
+  .modal { padding: 22px 18px; min-width: 280px; }
+  .room-meta { font-size: 11px; padding: 6px 10px; gap: 6px; }
+  .room-link { max-width: 120px; }
+}
+
+/* ============ 横屏适配 ============ */
+@media (orientation: landscape) and (max-height: 540px) {
+  .page { justify-content: flex-start; padding-top: 10px; }
+  .hero { padding: 10px; max-width: 420px; }
+  .hero h1 { font-size: 30px; }
+  .big-gem { width: 90px; height: 90px; margin-bottom: 8px; }
+  .subtitle { margin: 2px 0 8px; }
+  .rules-hint { padding: 8px 10px; font-size: 11px; margin-bottom: 8px; }
+  .menu-buttons { margin-top: 14px; gap: 8px; max-width: 260px; }
+  .btn { padding: 10px 16px; font-size: 13px; }
+  .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
+  .game-wrap { gap: 12px; }
+  .game-header { padding: 4px 8px; }
+}
+
+/* ============ 桌面大屏 ============ */
+@media (min-width: 1024px) {
+  .menu-buttons { max-width: 340px; }
+  .board { width: 440px; height: 440px; }
+  .big-gem { width: 160px; height: 160px; }
+  .hero h1 { font-size: 52px; }
+}
+
+/* 隐藏 scrollbar */
+::-webkit-scrollbar { width: 0; height: 0; }
+
+  
+/* C 模式：染色版额外样式 */
+.dye-wrap { max-width: 560px; margin: 0 auto; padding: 12px 10px 28px; width: 100%; box-sizing: border-box; }
+.dye-card { background: rgba(25,22,46,.72); border: 1px solid rgba(120,105,220,.45); border-radius: 14px; padding: 14px; margin-bottom: 14px; backdrop-filter: blur(4px); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.dye-card h2 { font-size: 14px; margin: 2px 0 10px; letter-spacing: .5px; color: #c8bcff; font-weight: 600; }
+.dye-opts { display: grid; grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); gap: 8px; }
+.dye-opt { border: 1px solid rgba(120,105,220,.45); background: rgba(40,36,75,.55); color: #f1ecff; border-radius: 10px; padding: 10px 8px; font-size: 13px; cursor: pointer; transition: all .15s ease; }
+.dye-opt:hover { transform: translateY(-1px); }
+.dye-opt.active { border-color: #ff5577; box-shadow: 0 0 0 2px rgba(255,85,119,.25); background: linear-gradient(180deg, rgba(255,85,119,.18), rgba(40,36,75,.55)); }
+.dye-opt .t { font-weight: 600; }
+.dye-opt .d { color: #b6addd; font-size: 11px; margin-top: 3px; line-height: 1.4; }
+.dye-setup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.dye-setup-actions .btn { flex: 1; min-width: 160px; }
+
+.dye-game { display: none; }
+
+.dye-counts { display: flex; gap: 14px; }
+.dye-count { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #f1ecff; }
+.dye-count .dot { width: 14px; height: 14px; border-radius: 50%; }
+.dye-count.p1 .dot { background: #ffd9ee; box-shadow: 0 0 8px #ff78c8; }
+.dye-count.p2 .dot { background: #6e65ff; box-shadow: 0 0 8px #8cc6ff; }
+
+.dye-hint { font-size: 12px; color: #b6addd; margin: 8px 0 10px; min-height: 16px; }
+.dye-board {
+  width: 100%; max-width: 440px; margin: 0 auto; aspect-ratio: 1 / 1;
+  background: linear-gradient(135deg, #1e1a36 0%, #251f43 100%);
+  border: 1px solid rgba(120,105,220,.45);
+  border-radius: 16px; padding: 8px; display: grid; gap: 6px;
+  box-shadow: inset 0 0 30px rgba(0,0,0,.4), 0 14px 30px rgba(0,0,0,.4);
+}
+.dye-cell {
+  position: relative; border-radius: 10px;
+  background: linear-gradient(180deg, #2a2452, #1f1b3e);
+  border: 1px solid rgba(125,110,200,.28);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .15s ease; user-select: none;
+}
+.dye-cell.place-hint::after {
+  content: ''; position: absolute; inset: 25%; border-radius: 50%;
+  border: 2px dashed rgba(255,255,255,.18);
+}
+.dye-cell.move-hint::after {
+  content: ''; position: absolute; inset: 18%; border-radius: 10px;
+  border: 2px dashed rgba(122,220,170,.55);
+  background: rgba(81,232,152,.08);
+}
+.dye-cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.25); }
+.dye-cell.flipping { animation: dyeFlip 500ms ease; }
+@keyframes dyeFlip { 0%{transform:scale(1);} 30%{transform:scale(.4);opacity:.55;} 60%{transform:scale(.4);opacity:.55;} 100%{transform:scale(1);} }
+.dye-cell.disabled { cursor: not-allowed; }
+.dye-cell.ending::after {
+  content: ''; position: absolute; inset: 12%; border-radius: 8px;
+  background: linear-gradient(180deg, rgba(81,232,152,.2), rgba(81,232,152,0));
+  border: 2px solid rgba(81,232,152,.6);
+  animation: dyeWinPulse .9s ease-in-out infinite;
+}
+@keyframes dyeWinPulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.05);} }
+.dye-piece {
+  width: 70%; height: 70%; border-radius: 50%; position: relative; z-index: 1;
+  animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1);
+}
+@keyframes dyeDrop { from { transform: translateY(-6px) scale(.6); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+.dye-piece.p1 { background: radial-gradient(circle at 30% 30%, #ffffff 0%, #ffd9ee 60%, #ff78c8 100%); box-shadow: 0 6px 14px rgba(0,0,0,.45), 0 0 12px rgba(255,120,200,.45); }
+.dye-piece.p2 { background: radial-gradient(circle at 30% 30%, #e5f2ff 0%, #6e65ff 60%, #8cc6ff 100%); box-shadow: 0 6px 14px rgba(0,0,0,.5), 0 0 12px rgba(140,198,255,.45); }
+.dye-piece.sliding { animation: dyeSlide 320ms cubic-bezier(.25,1.4,.5,1) both; }
+@keyframes dyeSlide {
+  from { transform: translate(calc(var(--dx,0) * -100%), calc(var(--dy,0) * -100%)); opacity: .55; }
+  to   { transform: translate(0,0); opacity: 1; }
+}
+.dye-banner {
+  margin-top: 14px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid rgba(120,105,220,.45); background: rgba(24,21,46,.78);
+  display: none; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.dye-banner.show { display: flex; }
+.dye-banner .msg { font-weight: 600; color: #fff; }
+.dye-banner .btns { display: flex; gap: 6px; }
+.dye-banner button {
+  border: 0; padding: 8px 12px; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 13px;
+  background: linear-gradient(180deg, #7a6bff, #4e40d0);
+  box-shadow: 0 4px 12px rgba(78,64,208,.35);
+}
+.dye-banner button.minor { background: rgba(35,32,63,.88); color: #b6addd; border: 1px solid rgba(120,105,220,.45); box-shadow: none; }
+.dye-legend { font-size: 12px; color: #b6addd; line-height: 1.8; }
+.dye-legend b { color: #fff5ff; }
+
+@media (max-width: 380px) {
+  .dye-opts { grid-template-columns: repeat(2, 1fr); }
+}
+
+  </style></head>
+<body>
+
+<!-- 星空背景 -->
+  <div class="stars" aria-hidden="true"></div>
+  <div class="stars stars2" aria-hidden="true"></div>
+
+  <!-- 顶部标题栏 -->
+  <header class="top-bar">
+    <div class="brand">
+      <span class="logo">✦</span>
+      <span class="title">Moon Chess</span>
+    </div>
+    <div class="actions" id="room-info">
+
+      <div class="room-meta">
+        <div class="room-code-wrap">房间号 <b id="room-code">--</b></div>
+        <a id="room-link" class="room-link" target="_blank" rel="noopener">链接</a>
+        <button class="btn-small" id="btn-copy">复制</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========== 主菜单 ========== -->
+    <section id="menu" class="page show">
+    <div class="hero">
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 200 200" width="100%" height="100%">
+          <defs>
+            <radialGradient id="hero-g" cx="35%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity=".95"/>
+              <stop offset="40%" stop-color="#d6caff" stop-opacity=".75"/>
+              <stop offset="100%" stop-color="#7865ff" stop-opacity=".55"/>
+            </radialGradient>
+            <filter id="hero-glow"><feGaussianBlur stdDeviation="6"/></filter>
+          </defs>
+          <polygon points="100,10 185,55 185,145 100,190 15,145 15,55" fill="url(#hero-g)" filter="url(#hero-glow)" opacity=".6"/>
+          <polygon points="100,20 175,60 175,140 100,180 25,140 25,60" fill="url(#hero-g)"/>
+        </svg>
+      </div>
+      <h1>蚀染模式</h1>
+      <p class="subtitle">Moon Chess · Eclipse Dye · 夹击染子 · 子多者胜</p>
+      <p class="rules-hint">
+        空棋盘开局，每回合 <b>放子</b> 或 <b>移动</b> 二选一；落位时按 8 方向检查「己方→对方连续→己方」夹击，命中则中间所有对方棋子<b>被染为己方</b>。<b>移动方向 4 邻 / 8 邻 可切换（对局内也能改）</b>，支持 <b>3×3 与 4×4</b> 棋盘。结束：棋盘占满 / 当前方无任何动作 → <b>子数多者胜</b>。
+      </p>
+    </div>
+
+    <div class="dye-wrap" style="padding-top:0">
+      <div class="dye-card">
+        <h2>棋盘大小</h2>
+        <div class="dye-opts" id="sizeOpts">
+          <div class="dye-opt" data-v="3"><div class="t">3 × 3</div><div class="d">快节奏</div></div>
+          <div class="dye-opt active" data-v="4"><div class="t">4 × 4</div><div class="d">默认</div></div>
+        </div>
+      </div>
+
+      <div class="dye-card">
+        <h2>移动范围（对局内可切换）</h2>
+        <div class="dye-opts" id="moveOpts">
+          <div class="dye-opt active" data-v="4"><div class="t">4 邻</div><div class="d">上下左右</div></div>
+          <div class="dye-opt" data-v="8"><div class="t">8 邻</div><div class="d">含对角</div></div>
+        </div>
+      </div>
+
+      <div class="dye-card">
+        <h2>难度</h2>
+        <div class="dye-opts" id="diffOpts">
+          <div class="dye-opt active" data-v="easy"><div class="t">简单</div><div class="d">AI 放水，易赢</div></div>
+          <div class="dye-opt" data-v="std"><div class="t">标准</div><div class="d">优先翻子+占地</div></div>
+        </div>
+      </div>
+
+      <div class="dye-card">
+        <h2>执棋方（粉白 = 先手）</h2>
+        <div class="dye-opts" id="sideOpts">
+          <div class="dye-opt active" data-v="1"><div class="t">执粉白（先手）</div><div class="d">P1</div></div>
+          <div class="dye-opt" data-v="2"><div class="t">执紫蓝（后手）</div><div class="d">P2</div></div>
+        </div>
+      </div>
+
+      <div class="dye-setup-actions">
+        <button class="btn primary" id="btnStart"><span class="btn-icon">✦</span> 开始对局</button>
+        <a class="btn" href="../index.html" style="text-decoration:none;text-align:center"><span class="btn-icon">◇</span> 其他模式</a>
+      </div>
+      <div style="height:18px"></div>
+      <div class="dye-card dye-legend">
+        <b>操作：</b>点击虚线空格 = 放子；点击你的一颗棋子 = 选中，绿色目标格 = 合法移动。<br>
+        <b>夹击：</b>以落位子为锚，向 8 方向搜索「己方 → 对方连续 ≥1 → 己方」，命中则中间子全翻。<br>
+        <b>胜负：</b>棋盘占满或当前方无任何动作 → 子数多者胜。棋子不消失、不设回合上限。
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ========== 对局页面 ========== -->
+    <section id="game" class="page">
+    <div class="dye-wrap">
+      <div class="game-header">
+        <div class="title-group">
+          <div class="game-title-small">🌘 蚀染模式对局</div>
+          <div id="turn-indicator" class="turn-indicator">你的回合</div>
+        </div>
+        <div class="action-group">
+          <button class="top-btn" id="btnExitToMenu" title="返回设置">← 设置</button>
+          <button class="top-btn" id="btnRestart" title="再来一局">↻ 重开</button>
+          <button class="top-btn" id="btnInGameMoveK" title="切换 4/8 邻移动范围">🧭 移动：4 邻</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;justify-content:center;margin:10px 0 12px">
+        <div class="dye-count p1"><span class="dot"></span><span id="p1Count">0</span> 粉白</div>
+        <div class="dye-count p2"><span class="dot"></span><span id="p2Count">0</span> 紫蓝</div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px;color:#b6addd;font-size:12px">
+        <div class="dye-chip" id="ruleChip">规则：子多者胜 · 4×4 · 4 邻移动 · 空棋盘开局</div>
+      </div>
+
+      <div class="dye-hint" id="hint">点空格放置己方棋子</div>
+
+      <div class="dye-board" id="board"></div>
+
+      <div class="dye-banner" id="endBanner">
+        <div class="msg" id="endMsg">结束</div>
+        <div class="btns">
+          <button class="minor" id="btnBannerExit">改设定</button>
+          <button id="btnBannerRestart">再来一局</button>
+        </div>
+      </div>
+
+      <div style="height:14px"></div>
+      <div class="dye-card dye-legend" id="gameLegend"></div>
+    </div>
+  </section>
+
+
+  <!-- ========== 选择难度 ========== -->
+  <div class="modal-mask" id="difficulty-select">
+
+    <div class="modal">
+      <h2>选择 AI 难度</h2>
+      <div class="diff-list">
+        <button class="diff-btn" id="diff-easy">
+          <span class="diff-emoji">🌙</span>
+          <span class="diff-name">简单</span>
+          <span class="diff-desc">AI 会下棋，但常常疏忽</span>
+        </button>
+        <button class="diff-btn" id="diff-normal">
+          <span class="diff-emoji">⭐</span>
+          <span class="diff-name">正常</span>
+          <span class="diff-desc">懂得堵截与制造威胁</span>
+        </button>
+        <button class="diff-btn" id="diff-hard">
+          <span class="diff-emoji">💫</span>
+          <span class="diff-name">困难</span>
+          <span class="diff-desc">每一步都在算 5 步之后</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 选择执白 / 执黑（先后手） ========== -->
+  <div class="modal-mask" id="side-select">
+    <div class="modal">
+      <h2>选择先后手</h2>
+      <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
+      <div class="diff-list">
+        <button class="diff-btn" id="side-white">
+          <span class="diff-emoji" aria-hidden="true">
+            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
+              <radialGradient id="s-w" cx="48%" cy="36%" r="68%">
+                <stop offset="0%" stop-color="#ffffff"/><stop offset="35%" stop-color="#fff0fa"/>
+                <stop offset="60%" stop-color="#ffc3de"/><stop offset="85%" stop-color="#ff8fc7"/><stop offset="100%" stop-color="#c97bff"/>
+              </radialGradient></defs>
+              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-w)" stroke="#ffd8ec" stroke-opacity="0.75" stroke-width="1.4"/>
+              <polygon points="50,10 68,30 50,44 32,30" fill="#ffffff" fill-opacity="0.55"/>
+              <circle cx="46" cy="40" r="3.4" fill="#ffffff" fill-opacity="0.95"/></svg>
+          </span>
+          <span class="diff-name">执粉白（先手）</span>
+          <span class="diff-desc">你用粉白棋，开局第一步由你下</span>
+        </button>
+        <button class="diff-btn" id="side-black">
+          <span class="diff-emoji" aria-hidden="true">
+            <svg viewBox="0 0 100 100" style="width:42px;height:42px"><defs>
+              <radialGradient id="s-b" cx="50%" cy="34%" r="70%">
+                <stop offset="0%" stop-color="#e9efff"/><stop offset="30%" stop-color="#8fb3ff"/>
+                <stop offset="60%" stop-color="#7a5bff"/><stop offset="85%" stop-color="#4a2bc7"/><stop offset="100%" stop-color="#241070"/>
+              </radialGradient></defs>
+              <polygon points="50,10 86,30 86,70 50,90 14,70 14,30" fill="url(#s-b)" stroke="#c0b8ff" stroke-opacity="0.72" stroke-width="1.4"/>
+              <polygon points="50,10 68,30 50,44 32,30" fill="#d7e6ff" fill-opacity="0.4"/>
+              <circle cx="46" cy="40" r="3" fill="#e9f2ff" fill-opacity="0.9"/></svg>
+          </span>
+          <span class="diff-name">执紫蓝（后手）</span>
+          <span class="diff-desc">你用紫蓝棋，开局由 AI 先走粉白棋</span>
+        </button>
+      </div>
+      <div class="modal-actions" style="justify-content:center">
+        <button class="btn btn-ghost" id="side-back">← 返回选择难度</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 加入房间对话框 ========== -->
+  <div class="modal-mask" id="join-dialog">
+
+    <div class="modal">
+      <h2>加入房间</h2>
+      <p class="hint">输入 6 位房间号，或粘贴完整链接</p>
+      <input id="join-input" class="input" maxlength="64" placeholder="例如: ABC123 或 https://.../r/ABC123" />
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="btn-join-cancel">取消</button>
+        <button class="btn primary" id="btn-join-confirm">加入</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 通用确认对话框（单机重开确认 / 其它需要用户确认的动作） ========== -->
+  <div class="modal-mask confirm-mask" id="confirm-dialog" hidden>
+    <div class="modal">
+      <div class="confirm-title" id="confirm-title">确认重新开始？</div>
+      <div class="confirm-desc" id="confirm-desc">当前局的进度会被清空，确定要开始新的一局吗？</div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost" id="btn-confirm-no">取消</button>
+        <button class="btn primary" id="btn-confirm-yes">确认</button>
+      </div>
+    </div>
+  </div>
+  <script>
+window.MOON_CHESS_STANDALONE = true;
+if (typeof window.io !== "function") {
+  window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
+}
+window.__moon_chess_showOnlineTip = function() {
+  var TIP_ID = '__mc_online_tip_v3__';
+  if (document.getElementById(TIP_ID)) return;
+  var wrap = document.createElement('div');
+  wrap.id = TIP_ID;
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+  var dialog = document.createElement('div');
+  dialog.style.cssText = 'max-width:440px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
+  var h3 = document.createElement('h3');
+  h3.textContent = '联机对战提示';
+  h3.style.cssText = 'margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
+  var p = document.createElement('p');
+  p.innerHTML = '当前是纯静态分享版本，<b style="color:#4cc9f0">单机对战（含三档 AI、慢速思考+预选提示、消失闪烁、重开确认、横幅结果、响应式）全部正常</b>。联机对战（房间邀请制、实时同步）需要部署 Node WebSocket 服务端。';
+  p.style.cssText = 'color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
+  var pre = document.createElement('pre');
+  pre.style.cssText = 'background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px';
+  pre.textContent = '【推荐 Koyeb 免费层一键部署（无需绑卡）】\nhttps://app.koyeb.com/apps/deploy?type=git&repository=github.com/Warpeas/moon-chess&branch=main&builder=dockerfile&ports=3000;http;/&name=moon-chess\n\n【Docker 自托管】\ndocker build -t moon-chess . && docker run -p 3000:3000 moon-chess';
+  var btn = document.createElement('button');
+  btn.textContent = '知道了';
+  btn.style.cssText = 'width:100%;padding:10px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
+  btn.onclick = function(){ wrap.remove(); };
+  dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
+  wrap.appendChild(dialog);
+  document.body.appendChild(wrap);
+};
+  </script>
+  
+  
+
+<script>
+
+window.MOON_CHESS_STANDALONE = true;
+if (typeof window.io !== "function") {
+  window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
+}
+window.__moon_chess_showOnlineTip = function() {
+  var TIP_ID = '__mc_online_tip_v3__';
+  if (document.getElementById(TIP_ID)) return;
+  var wrap = document.createElement('div');
+  wrap.id = TIP_ID;
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+  var dialog = document.createElement('div');
+  dialog.style.cssText = 'max-width:440px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
+  var h3 = document.createElement('h3');
+  h3.textContent = '联机对战提示';
+  h3.style.cssText = 'margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
+  var p = document.createElement('p');
+  p.innerHTML = '当前是纯静态分享版本，<b style="color:#4cc9f0">单机对战（含三档 AI、慢速思考+预选提示、消失闪烁、重开确认、横幅结果、响应式）全部正常</b>。联机对战（房间邀请制、实时同步）需要部署 Node WebSocket 服务端。';
+  p.style.cssText = 'color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
+  var pre = document.createElement('pre');
+  pre.style.cssText = 'background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px';
+  pre.textContent = '【推荐 Koyeb 免费层一键部署（无需绑卡）】\nhttps://app.koyeb.com/apps/deploy?type=git&repository=github.com/Warpeas/moon-chess&branch=main&builder=dockerfile&ports=3000;http;/&name=moon-chess\n\n【Docker 自托管】\ndocker build -t moon-chess . && docker run -p 3000:3000 moon-chess';
+  var btn = document.createElement('button');
+  btn.textContent = '知道了';
+  btn.style.cssText = 'width:100%;padding:10px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
+  btn.onclick = function(){ wrap.remove(); };
+  dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
+  wrap.appendChild(dialog);
+  document.body.appendChild(wrap);
+};
+  
+</script>
+<script>
+
+(() => {
+  'use strict';
+
+  function syncInGameMoveBtn(){
+    if(!cfg) return;
+    document.getElementById('btnInGameMoveK').textContent = `🧭 移动：${cfg.moveK} 邻`;
+  }
+
+  // ======================= Constants =======================
+  const QP = new URLSearchParams(location.search);
+  let SIZE = parseInt(QP.get('s'),10)===3 ? 3 : 4;   // 可在开局 & URL中改
+  const P1 = 1, P2 = 2;
+  const DIRS = [
+    [-1,-1],[-1,0],[-1,1],
+    [ 0,-1],       [ 0,1],
+    [ 1,-1],[ 1,0],[ 1,1],
+  ];
+
+  // ======================= State =======================
+  let cfg = null;          // { size:3|4, moveK: 4|8, diff: 'easy'|'std', me: 1|2 }
+  let game = null;         // game state
+  let movingSel = null;    // {r,c} if user picked own piece for move
+  let aiThinking = false;
+  let aiTimer = null;
+  let slideInfo = null;    // {fromR,fromC,toR,toC} for slide animation
+
+  // ======================= Setup UI =======================
+  function optPicker(id, cb) {
+    const root = document.getElementById(id);
+    const opts = root.querySelectorAll('.dye-opt');
+    opts.forEach(o => {
+      o.addEventListener('click', () => {
+        opts.forEach(x => x.classList.remove('active'));
+        o.classList.add('active');
+        cb && cb(o.dataset.v);
+      });
+    });
+  }
+  // 若 URL 带 ?s=3 开局默认 3x3
+  if(SIZE===3){
+    const root = document.getElementById('sizeOpts');
+    root.querySelectorAll('.dye-opt').forEach(o=>o.classList.toggle('active', o.dataset.v==='3'));
+  }
+  optPicker('moveOpts'); optPicker('diffOpts'); optPicker('sideOpts'); optPicker('sizeOpts');
+
+  function activeVal(id) { return document.querySelector('#'+id+' .dye-opt.active').dataset.v; }
+
+  document.getElementById('btnStart').addEventListener('click', () => {
+    const size = parseInt(activeVal('sizeOpts'),10);
+    const moveK = parseInt(activeVal('moveOpts'),10);
+    const diff = activeVal('diffOpts');
+    const me = parseInt(activeVal('sideOpts'),10);
+    SIZE = size;
+    cfg = { size, moveK, diff, me };
+    document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${size}×${size} · ${moveK}邻移动 · 不消失 · 空棋盘开局`;
+    document.getElementById('gameLegend').innerHTML =
+      `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${moveK} 邻（对局内可切换）。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+    const sub = document.querySelector('#setup .sub');
+    if (sub) sub.textContent = `${size}×${size} · 空棋盘开局 · 放置/移动均可 · 夹击染子（可选是否触发） · 子多者胜`;
+    document.getElementById('menu').classList.remove('show');
+    document.getElementById('game').classList.add('show');
+    (syncInGameMoveBtn && syncInGameMoveBtn());
+    startGame();
+  });
+
+  // 对局内切换 4 邻 / 8 邻
+  document.getElementById('btnInGameMoveK').addEventListener('click', () => {
+    if(!cfg) return;
+    cfg.moveK = cfg.moveK===4 ? 8 : 4;
+    // 若当前处于 movingSel，合法目标列表刷新
+    if(movingSel){
+      // 若新 moveK 下该选子无合法邻居，取消选中
+      if(moveNeighbors(movingSel.r, movingSel.c, cfg.moveK).length===0) movingSel = null;
+    }
+    if(game && cfg){
+      document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${cfg.size}×${cfg.size} · ${cfg.moveK}邻移动 · 不消失 · 空棋盘开局`;
+      document.getElementById('gameLegend').innerHTML =
+        `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${cfg.moveK} 邻（对局内可切换）。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+    }
+    (syncInGameMoveBtn && syncInGameMoveBtn());
+    if(game) render();
+  });
+
+  // ======================= Game Logic =======================
+  // 简化版规则（固定）：
+  // * 空 4×4 开局，棋子不消失，无回合上限
+  // * 每回合二选一：放子(任意空格) 或 移动(4/8邻的空格)
+  // * 落子/移动落位后：8方向检查夹击「己方 → 对方连续 ≥1 → 己方」，命中则中间子全翻；未命中也合法（纯占位/纯移动）
+  // * 结束：棋盘无空格 或 当前方既没空格可放又没己方棋子可移动(所有邻格被占) → 子数多者胜
+  function newGame() {
+    return {
+      board: Array.from({length:SIZE},()=>Array(SIZE).fill(0)),
+      stepN: 0,
+      current: P1,
+      status: 'playing',
+      result: null,
+    };
+  }
+  function inBounds(r,c){ return r>=0&&r<SIZE&&c>=0&&c<SIZE; }
+  function moveNeighbors(r,c,K) {
+    const out = [];
+    for (let dr=-1; dr<=1; dr++) for (let dc=-1; dc<=1; dc++) {
+      if (dr===0 && dc===0) continue;
+      if (K===4 && dr!==0 && dc!==0) continue;
+      const nr=r+dr, nc=c+dc;
+      if (inBounds(nr,nc) && game.board[nr][nc]===0) out.push([nr,nc]);
+    }
+    return out;
+  }
+  function isLegalMoveStep(r,c,nr,nc) {
+    const dr=nr-r, dc=nc-c;
+    if (dr===0 && dc===0) return false;
+    if (cfg.moveK===4 && dr!==0 && dc!==0) return false;
+    return Math.abs(dr)<=1 && Math.abs(dc)<=1;
+  }
+  // Returns list of [r,c] cells flipped if player lands at (r,c) on given board
+  function computeFlips(board, r, c, player) {
+    const enemy = player===P1?P2:P1;
+    const flipped = [];
+    for (const [dr,dc] of DIRS) {
+      const line = [];
+      let rr=r+dr, cc=c+dc;
+      while (inBounds(rr,cc) && board[rr][cc]===enemy) { line.push([rr,cc]); rr+=dr; cc+=dc; }
+      if (line.length>0 && inBounds(rr,cc) && board[rr][cc]===player) {
+        for (const p of line) flipped.push(p);
+      }
+    }
+    return flipped;
+  }
+  function countPieces() {
+    let a=0,b_=0;
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
+      const v = game.board[r][c];
+      if (v===P1) a++; else if (v===P2) b_++;
+    }
+    return { p1:a, p2:b_ };
+  }
+  function majorityResult(reason) {
+    const {p1,p2} = countPieces();
+    let winner = 0;
+    if (p1 > p2) winner = P1;
+    else if (p2 > p1) winner = P2;
+    return { winner, reason: reason + ` (${p1}:${p2})` };
+  }
+  // 检查：板是否已满 或 当前方是否完全没动作（没空格且没棋可动邻格）
+  function checkEndNow() {
+    let empty = 0;
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) empty++;
+    if (empty === 0) { game.status = 'over'; game.result = majorityResult('棋盘占满'); return true; }
+    // 当前方可做的动作？
+    if (listAllActions(game.current).length === 0) {
+      game.status = 'over';
+      game.result = majorityResult(`${game.current===P1?'粉白':'紫蓝'}方无动作（没空格也没棋可动）`);
+      return true;
+    }
+    return false;
+  }
+  // 放置：任何空格都合法，有夹击则翻
+  function doPlace(r,c,player) {
+    if (!inBounds(r,c) || game.board[r][c]!==0) return { ok:false, reason:'invalid-cell' };
+    game.board[r][c] = player;
+    const flipped = computeFlips(game.board, r, c, player);
+    for (const [fr,fc] of flipped) game.board[fr][fc] = player;
+    afterAction(player);
+    return { ok:true, flipped };
+  }
+  // 移动：邻格 4/8 设置；目标必须空格；无夹击也合法
+  function doMove(fromR,fromC,toR,toC,player) {
+    if (!inBounds(fromR,fromC) || !inBounds(toR,toC)) return { ok:false, reason:'oob' };
+    if (game.board[fromR][fromC]!==player || game.board[toR][toC]!==0) return { ok:false, reason:'invalid' };
+    if (!isLegalMoveStep(fromR,fromC,toR,toC)) return { ok:false, reason:'not-neighbor' };
+    game.board[fromR][fromC] = 0;
+    game.board[toR][toC] = player;
+    const flipped = computeFlips(game.board, toR, toC, player);
+    for (const [fr,fc] of flipped) game.board[fr][fc] = player;
+    afterAction(player);
+    return { ok:true, flipped };
+  }
+  function afterAction(player) {
+    game.stepN += 1;
+    game.current = player===P1 ? P2 : P1;
+    checkEndNow();
+  }
+
+  // ======================= Actions Enumeration (for AI / hint checks) =======================
+  // 新规则：所有合法放置 + 所有合法移动（纯占位/纯移动也列入）
+  function listAllActions(player) {
+    const acts = [];
+    // place
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) {
+      const flipped = computeFlips(game.board, r, c, player);
+      acts.push({ kind:'place', r, c, flipCount: flipped.length, flips: flipped });
+    }
+    // move
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===player) {
+      for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
+        // simulate move then flip count
+        const saved = game.board[r][c];
+        game.board[r][c] = 0; game.board[nr][nc] = player;
+        const flipped = computeFlips(game.board, nr, nc, player);
+        game.board[r][c] = saved; game.board[nr][nc] = 0;
+        acts.push({ kind:'move', fromR:r, fromC:c, r:nr, c:nc, flipCount: flipped.length, flips: flipped });
+      }
+    }
+    return acts;
+  }
+
+  // ======================= Rendering =======================
+  const boardEl = document.getElementById('board');
+
+  function buildBoardDOM() {
+    boardEl.innerHTML = '';
+    boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+    boardEl.style.gridTemplateRows = `repeat(${SIZE}, 1fr)`;
+    for (let r=0;r<SIZE;r++) {
+      for (let c=0;c<SIZE;c++) {
+        const d = document.createElement('div');
+        d.className='dye-cell';
+        d.dataset.r = r; d.dataset.c = c;
+        d.addEventListener('click', onCellClick);
+        boardEl.appendChild(d);
+      }
+    }
+  }
+
+  function cellAt(r,c) {
+    return boardEl.children[r*SIZE+c];
+  }
+
+  function render(extra = {}) {
+    // update counts / turn / turns chip
+    const {p1,p2} = countPieces();
+    document.getElementById('p1Count').textContent = p1;
+    document.getElementById('p2Count').textContent = p2;
+    const me = cfg.me;
+    const curText = game.current === P1
+      ? (me===P1 ? '你的回合 (粉白)' : 'AI 思考中 (粉白)')
+      : (me===P2 ? '你的回合 (紫蓝)' : 'AI 思考中 (紫蓝)');
+    const turnLabel = document.getElementById('turn-indicator');
+    const tEl=document.getElementById('turn-indicator');tEl.classList.remove('p1','p2');tEl.classList.add(game.current===P1?'p1':'p2');
+    document.getElementById('turn-indicator').textContent = curText;
+
+    
+
+    // 提示高亮集合
+    // 合并交互规则:点击空格=放子; 点击己方棋子=选中并展示移动目标; 点选中子取消
+    let validPlaceSet = null, validMoveDestBySel = null, myPiecesMovable = new Set();
+    if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
+      validPlaceSet = new Set();
+      for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) validPlaceSet.add(r+','+c);
+      myPiecesMovable = new Set();
+      for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===cfg.me) {
+        if (moveNeighbors(r,c, cfg.moveK).length > 0) myPiecesMovable.add(r+','+c);
+      }
+      validMoveDestBySel = {};
+      if (movingSel) {
+        const s = movingSel.r+','+movingSel.c;
+        validMoveDestBySel[s] = new Set();
+        for (const [nr,nc] of moveNeighbors(movingSel.r, movingSel.c, cfg.moveK)) {
+          validMoveDestBySel[s].add(nr+','+nc);
+        }
+      }
+    }
+
+    // per-cell
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
+      const el = cellAt(r,c);
+      const v = game.board[r][c];
+      const key = v === 0 ? '0' : ('p'+v);
+      if (el.dataset._k !== key) {
+        el.innerHTML = '';
+        if (v !== 0) {
+          const p = document.createElement('div');
+          p.className='dye-piece ' + (v===P1?'p1':'p2');
+          // slide move animation: if this cell is the destination of a recent move
+          if (slideInfo && slideInfo.toR===r && slideInfo.toC===c) {
+            const dx = slideInfo.toC - slideInfo.fromC;
+            const dy = slideInfo.toR - slideInfo.fromR;
+            p.style.setProperty('--dx', dx.toFixed(1));
+            p.style.setProperty('--dy', dy.toFixed(1));
+            p.classList.add('sliding');
+            setTimeout(()=>{ p.classList.remove('sliding'); p.style.removeProperty('--dx'); p.style.removeProperty('--dy'); }, 360);
+          }
+          el.appendChild(p);
+        }
+        el.dataset._k = key;
+      }
+      el.classList.remove('place-hint','move-hint','selected','removing','ending','flipping','disabled');
+      if (extra.flipSet && extra.flipSet.has(r+','+c)) el.classList.add('flipping');
+
+      if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
+        if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
+        const dests = validMoveDestBySel ? validMoveDestBySel[movingSel && (movingSel.r+','+movingSel.c)] : null;
+        if (dests && dests.has(r+','+c)) el.classList.add('move-hint');
+        else if (v === 0 && validPlaceSet && validPlaceSet.has(r+','+c)) el.classList.add('place-hint');
+      } else {
+        el.classList.add('disabled');
+      }
+    }
+
+    // End banner
+    const banner = document.getElementById('endBanner');
+    if (game.status === 'over') {
+      const r = game.result || {};
+      let msg;
+      if (r.winner === 0) msg = `平局 · ${r.reason||''}`;
+      else if (r.winner === cfg.me) msg = `🎉 你赢了 · ${r.reason||''}`;
+      else msg = `AI 获胜 · ${r.reason||''}`;
+      document.getElementById('endMsg').textContent = msg;
+      document.getElementById('endBanner').classList.add('show');
+    } else {
+      document.getElementById('endBanner').classList.remove('show');
+    }
+
+    const hint = document.getElementById('hint');
+    if (game.status !== 'playing') {
+      hint.textContent = '对局结束';
+    } else if (aiThinking) {
+      hint.textContent = 'AI 思考中…';
+    } else if (game.current !== cfg.me) {
+      hint.textContent = '等待对方…';
+    } else {
+      const hasAny = (listAllActions(cfg.me).length > 0);
+      if (!hasAny) {
+        hint.textContent = '⚠️ 本回合你没空格可放也没棋可动，对局按子数多者胜结算';
+      } else if (!movingSel) {
+        hint.textContent = '点击虚线空格 = 放子；点击你的一颗棋子 = 选中并显示可移动目标（绿色框）';
+      } else {
+        hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格移动；再次点已选棋或另一颗己方可换选；点其它空格 = 取消选中并直接放子`;
+      }
+    }
+  }
+
+  // ======================= User interactions =======================
+  // 合并交互：点击空格 = 放子；点击己方棋子 = 选中(显示绿色可移动目标)；再次点已选棋取消；选中时点击合法目标格移动；选中时点击别的己方棋子 = 切换选中；选中时点击其它(非目标)空格 = 取消选中并直接放子
+  function onCellClick(e) {
+    if (game.status!=='playing' || aiThinking) return;
+    if (game.current !== cfg.me) return;
+    const r = +e.currentTarget.dataset.r;
+    const c = +e.currentTarget.dataset.c;
+    const v = game.board[r][c];
+
+    // Case 1: cell is empty
+    if (v === 0) {
+      // Is it a valid move destination of selection?
+      if (movingSel && isDestOf(movingSel.r, movingSel.c, r, c)) {
+        const fr = movingSel.r, fc = movingSel.c;
+        movingSel = null;
+        performUserAction(()=>doMove(fr,fc,r,c,cfg.me));
+        return;
+      }
+      // Treat as place
+      movingSel = null;
+      performUserAction(()=>doPlace(r,c,cfg.me));
+      return;
+    }
+
+    // Case 2: own piece clicked
+    if (v === cfg.me) {
+      if (movingSel && movingSel.r===r && movingSel.c===c) { movingSel=null; render(); return; }
+      if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋周围没有相邻空格可动，不能选择'); movingSel=null; render(); return; }
+      movingSel = {r,c};
+      render();
+      return;
+    }
+
+    // Case 3: enemy piece — cancel selection only
+    if (movingSel) { movingSel = null; render(); }
+  }
+
+  function pieceHasMoves(r,c,player) {
+    // 简化规则：只要有相邻空格就是可动
+    return moveNeighbors(r,c,cfg.moveK).length > 0;
+  }
+
+  function isDestOf(fr,fc,tr,tc) {
+    if (game.board[tr][tc]!==0) return false;
+    return isLegalMoveStep(fr,fc,tr,tc);
+  }
+
+  function flashHint(t){ document.getElementById('hint').textContent = t; }
+
+  function performUserAction(fn) {
+    slideInfo = null;
+    const res = fn();
+    if (!res || !res.ok) {
+      flashHint('无法执行这一步');
+      return;
+    }
+    // 设置滑动动画信息：移动动作携带 fromR/fromC
+    if (res.fromR !== undefined && res.toR !== undefined) {
+      slideInfo = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC };
+    }
+    const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
+    render({ flipSet });
+    slideInfo = null;
+    if (game.status === 'over') return;
+    if (game.current !== cfg.me) scheduleAI();
+  }
+
+  // ======================= AI =======================
+  function scheduleAI() {
+    if (game.status !== 'playing') return;
+    aiThinking = true;
+    render();
+    const wait = cfg.diff === 'easy' ? 500 + Math.random()*300 : 700 + Math.random()*500;
+    aiTimer = setTimeout(runAI, wait);
+  }
+
+  function runAI() {
+    if (game.status !== 'playing') return;
+    const player = cfg.me === P1 ? P2 : P1;
+    const acts = listAllActions(player);
+    aiThinking = false;
+    if (acts.length === 0) {
+      // 新规则下只要存在空格必至少有一个 place 动作，所以 acts=0 等价于棋盘占满 & 没可动子 & 没空格 → 按结束直接结算
+      if (game.status === 'playing') { game.status = 'over'; game.result = majorityResult('双方无动作'); }
+      render();
+      return;
+    }
+
+    let chosen;
+    if (cfg.diff === 'easy') {
+      // 60% 完全随机；40% 走"赢的立即动作/翻≥2子"70%把握，其余仍随机
+      if (Math.random() < 0.60) {
+        chosen = acts[Math.floor(Math.random()*acts.length)];
+      } else {
+        // see any action that yields instant win condition? 70% take it
+        const instant = acts.filter(a => isWinningAction(a, player));
+        if (instant.length && Math.random() < 0.7) {
+          chosen = instant[Math.floor(Math.random()*instant.length)];
+        } else {
+          // 40% chance to top 2 flip counts; else random
+          if (Math.random() < 0.4) {
+            const sorted = [...acts].sort((a,b)=>b.flipCount-a.flipCount);
+            const top = sorted.slice(0, Math.min(2, sorted.length));
+            chosen = top[Math.floor(Math.random()*top.length)];
+          } else {
+            chosen = acts[Math.floor(Math.random()*acts.length)];
+          }
+        }
+      }
+    } else { // std
+      // Score each: flipCount*10 + posScore(r,c) + riskFlipLoss*5 + (immediateWin? 9999)
+      const scored = acts.map(a => {
+        const snap = snapshot();
+        applyAction(a, player);
+        const winNow = (game.status === 'over' && game.result && game.result.winner === player);
+        let oppBest = 0;
+        if (game.status === 'playing') {
+          const opp = listAllActions(player===P1?P2:P1);
+          for (const o of opp) if (o.flipCount > oppBest) oppBest = o.flipCount;
+          // opponent's biggest counter-advantage (opponent flips − our next net flip)
+          if (opp.some(o => isWinningAction(o, player===P1?P2:P1))) oppBest += 6;
+        }
+        const posS = posScore(a.r, a.c);
+        restore(snap);
+        let s = a.flipCount * 10 + posS - oppBest * 6 + (winNow ? 9999 : 0);
+        s += Math.random() * 0.5;
+        return { a, s };
+      });
+      scored.sort((x,y)=>y.s-x.s);
+      // 15% randomness: pick top 3 at random
+      if (Math.random() < 0.15) {
+        const top = scored.slice(0, Math.min(3, scored.length));
+        chosen = top[Math.floor(Math.random()*top.length)].a;
+      } else {
+        chosen = scored[0].a;
+      }
+    }
+
+    // Execute chosen
+    let res;
+    slideInfo = null;
+    if (chosen.kind === 'place') res = doPlace(chosen.r, chosen.c, player);
+    else res = doMove(chosen.fromR, chosen.fromC, chosen.r, chosen.c, player);
+    if (res && res.ok && res.fromR !== undefined && res.toR !== undefined) {
+      slideInfo = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC };
+    }
+    aiThinking = false;
+    const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
+    render({ flipSet });
+    slideInfo = null;
+  }
+
+  function posScore(r,c) {
+    if (SIZE === 3) {
+      // center (1,1) -> 5; corners -> 3; edges -> 2
+      if (r===1 && c===1) return 5;
+      if ((r===0||r===2) && (c===0||c===2)) return 3;
+      return 2;
+    }
+    // SIZE=4
+    const centerR = (r===1||r===2), centerC=(c===1||c===2);
+    if (centerR && centerC) return 5;
+    if ((r===0||r===SIZE-1) && (c===0||c===SIZE-1)) return 3;
+    if (centerR!==centerC /* edge */) return 2;
+    return 2;
+  }
+
+  function isWinningAction(a, player) {
+    // simulate action (snapshot/restore) and see if game.result.winner === player
+    const snap = snapshot();
+    if (a.kind==='place') doPlace(a.r,a.c,player);
+    else doMove(a.fromR,a.fromC,a.r,a.c,player);
+    const yes = (game.status==='over' && game.result && game.result.winner===player);
+    restore(snap);
+    return yes;
+  }
+
+  function snapshot() {
+    return {
+      board: game.board.map(r=>r.slice()),
+      stepN: game.stepN, current: game.current,
+      status: game.status, result: game.result ? {...game.result} : null,
+    };
+  }
+  function restore(s) {
+    game.board = s.board.map(r=>r.slice());
+    game.stepN = s.stepN; game.current = s.current;
+    game.status = s.status; game.result = s.result ? {...s.result} : null;
+  }
+  function applyAction(a, player) {
+    if (a.kind==='place') doPlace(a.r,a.c,player);
+    else doMove(a.fromR,a.fromC,a.r,a.c,player);
+  }
+
+  // ======================= Tabs & buttons =======================
+  document.getElementById('btnRestart').addEventListener('click', ()=>{ startGame(); });
+  document.getElementById('btnBannerRestart').addEventListener('click', ()=>{ startGame(); });
+  document.getElementById('btnExitToMenu').addEventListener('click', backToSetup);
+  document.getElementById('btnBannerExit').addEventListener('click', backToSetup);
+
+  function backToSetup() {
+    clearTimeout(aiTimer); aiThinking=false;
+    document.getElementById('game').classList.remove('show');
+    (document.getElementById('menu').classList.add('show'), document.getElementById('game').classList.remove('show'));
+  }
+
+  function startGame() {
+    game = newGame();
+    movingSel = null;
+    aiThinking = false;
+    slideInfo = null;
+    clearTimeout(aiTimer);
+    buildBoardDOM();
+    render();
+    if (game.current !== cfg.me) scheduleAI();
+  }
+
+  // ensure board doesn't stick in DOM if user re-starts: build empty on initial click start — OK.
+
+})();
+
+
+</script>
+</body>
+</html>

@@ -109,27 +109,27 @@
       tag: 'A · 原神原版',
       cls: 'a',
       title: '原神原版月亮棋',
-      short: '3×3 · 先连 3 子胜 · 每方最多 3 颗，己方回合己方最早子闪烁，放新子后消失',
-      href: 'moon-chess-standalone.html?m=yuanshen',
+      short: '3×3 · 先连 3 子胜 · 每方最多同时 3 颗；轮到己方时己方最早子闪烁，放新子后己方最早子消失',
+      href: 'moon-chess-standalone.html',
       preview: [
-        [1,0,0],
-        [2,1,0],
-        [2,0,0],
+        [1, 2, 0],
+        [2, 1, 0],
+        [1, 0, 2],
       ],
-      // mark "own oldest" on P1 turn. P1 order: (0,0) then (1,1); P2 order: (1,0) then (2,0); P1 has 2, P2 has 2; no warning yet. Build instead: P1=3 pieces.
-      warn: null,
+      // 规则示例：P1 已满 3（(0,0) (1,1) (2,0)），(0,0) 最早 → 闪烁警告
+      warn: '0,0',
     },
     {
       id: 'movable',
       tag: 'B · 原版 + 可移动',
       cls: 'b',
-      title: '原版 + 可移动',
-      short: '原神原版基础上增加「移动」操作：己方棋子 4 邻到空格，也算一次操作；其它完全不变',
-      href: 'moon-chess-standalone.html?m=movable',
+      title: '原版 + 可移动（4 邻）',
+      short: '原神原版 UI/规则 全部保留，再追加「移动」操作：点击己方棋子选中 → 点击 4 邻空格完成移动；移动也算一次操作，同样触发闪烁→消失链',
+      href: 'movable/index.html',
       preview: [
-        [1,2,0],
-        [0,1,2],
-        [2,0,1],
+        [1, 2, 0],
+        [0, 1, 2],
+        [2, 0, 1],
       ],
       warn: null,
     },
@@ -137,27 +137,18 @@
       id: 'dye',
       tag: 'C · 染色版',
       cls: '',
-      title: '染色版（蚀染）',
-      short: '夹击翻子、子多者胜；开局可选 3×3 / 4×4 与 4/8 邻移动；对局内随时切换 4/8 邻',
-      href: 'eclipse-dye-demo.html',
+      title: '蚀染模式（夹击染子 · 子多者胜）',
+      short: '空棋盘开局；点击空格 = 放子，点击己方棋子 = 选中移动；落位时 8 向夹击染对方为己方；支持 3×3 / 4×4、对局内切 4 / 8 邻移动',
+      href: 'dye/index.html',
       preview: [
-        [1,2,2,1],
-        [2,1,1,2],
-        [2,1,1,2],
-        [1,2,2,1],
+        [1, 2, 2, 1],
+        [2, 1, 1, 2],
+        [2, 1, 1, 2],
+        [1, 2, 2, 1],
       ],
       warn: null,
     },
   ];
-
-  // Set preview A so we demonstrate the "闪烁" = oldest piece of turn side.
-  // Turn assumed = P1 (white). P1 oldest = (0,0) -> mark warn.
-  cards[0].preview = [
-    [1, 2, 0],
-    [2, 1, 0],
-    [1, 0, 2],
-  ];
-  cards[0].warn = '0,0'; // P1 oldest blink on P1's turn; this player already placed 3; P2 also 3 -> both oldest blink? spec: each side blinks own oldest if own side >=3 AND it's own action. Let's mark one.
 
   function makeMini(data, warn) {
     const n = data.length;

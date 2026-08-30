@@ -795,6 +795,41 @@ body::after {
 /* 隐藏 scrollbar */
 ::-webkit-scrollbar { width: 0; height: 0; }
 
+/* B 模式：选中棋子、移动目标、滑入动画 */
+.piece.selected {
+  outline: 3px solid rgba(255, 205, 86, 0.95);
+  outline-offset: 2px;
+  border-radius: 50%;
+  animation: selectedPulse 0.9s ease-in-out infinite;
+}
+@keyframes selectedPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(255, 205, 86, 0.55), 0 0 24px rgba(255,255,255,0.25) inset; }
+  50%     { box-shadow: 0 0 0 8px rgba(255, 205, 86, 0.0), 0 0 28px rgba(255,255,255,0.35) inset; }
+}
+.move-target {
+  width: 42%; height: 42%; border-radius: 50%;
+  background: rgba(180, 240, 255, 0.18);
+  border: 2px dashed rgba(180, 240, 255, 0.7);
+  box-shadow: 0 0 18px rgba(140, 220, 255, 0.35);
+  animation: targetPulse 1s ease-in-out infinite;
+}
+@keyframes targetPulse {
+  0%,100% { transform: scale(0.92); opacity: 0.85; }
+  50%     { transform: scale(1.08); opacity: 1; }
+}
+.piece.slide-from {
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.piece.slide-to {
+  animation: slideIn 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes slideIn {
+  0%   { opacity: 0; transform: scale(0.75); filter: blur(3px); }
+  60%  { opacity: 0.9; transform: scale(1.06); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
   </style>
 </head>
 <body>
@@ -836,10 +871,10 @@ body::after {
           <polygon points="100,20 175,60 175,140 100,180 25,140 25,60" fill="url(#hero-g)"/>
         </svg>
       </div>
-      <h1>月蚀棋</h1>
-      <p class="subtitle">Moon Chess · 原神原版 · 先连三者胜，每方同时最多三颗</p>
+      <h1>月蚀棋 · 可移动版</h1>
+      <p class="subtitle">Moon Chess · 原版 + 可移动（4 向） · 先连三者胜，每方同时最多三颗</p>
       <p class="rules-hint">
-        3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：轮到己方下子时，若己方已 3 颗，则<b>己方最早子不消失，只是闪烁警告</b>——当你<b>放下新子</b>的那一瞬，己方第 4 子加入队列，原来最早那一颗才<b>消逝</b>。
+        3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>。操作：<b>点击空格 = 落子</b>；<b>点击己方棋子 = 选中</b>，再点<b>上下左右 4 个相邻空格</b>即可移动。轮到己方回合时，若己方已满 3 颗，则<b>己方最早子闪烁警告</b>——<b>放新子 / 完成一次移动</b>后，己方最早子才<b>消逝</b>。
       </p>
     </div>
 
@@ -859,7 +894,7 @@ body::after {
     </div>
 
     <footer class="footer">
-      <span>⚡ 先连三者胜 · 每方同时最多三颗 · 己方回合己方最早子闪烁 → 放新子后消逝</span>
+      <span>⚡ 先连三者胜 · 每方同时最多三颗 · 操作 = 落子 或 4 向移动 · 操作后己方最早子消逝</span>
     </footer>
   </section>
 
@@ -1071,23 +1106,91 @@ function checkWin(board) {
   return 0;
 }
 
-// 模拟一次落子（每方 ≤ 3 上限 FIFO），返回新的 { board, pieces, order, winner }
-function simulate(board, pieces, order, row, col, player) {
+// 模拟一次操作：{kind:'place',row,col} 或 {kind:'move',from:{row,col},to:{row,col}}
+// 移动后 pieces[player] 队列里被移动的棋子移动到队尾（因为它刚被操作，就等价于"最新的子"；这样己方最早子仍然保持是队列最旧那颗）。
+// 操作后若己方 > MAX_PER_SIDE，则己方最早子消失（放新子 / 移动都会触发）。
+function simulateAction(board, pieces, order, action, player) {
   const nb = cloneBoard(board);
   const np = clonePieces(pieces);
   const no = cloneOrder(order);
-  nb[row][col] = player;
-  np[player].push({ row, col });
-  no.push({ player, row, col });
-  // 己方满 3 → 己方最早子消失（新子 push 后才检查，等价于"下新子后消失"）
+  let removed = null;
+  if (action.kind === 'place') {
+    const { row, col } = action;
+    if (nb[row][col] !== 0) return null;
+    nb[row][col] = player;
+    np[player].push({ row, col });
+    no.push({ player, row, col });
+  } else if (action.kind === 'move') {
+    const { from, to } = action;
+    if (nb[from.row][from.col] !== player) return null;
+    if (nb[to.row][to.col] !== 0) return null;
+    // 从 pieces[player] 中找到 from 的项，删掉并 push 一个 to（改位置 + 变最新）
+    const pq = np[player];
+    const idx = pq.findIndex(p => p.row === from.row && p.col === from.col);
+    if (idx < 0) return null;
+    pq.splice(idx, 1);
+    pq.push({ row: to.row, col: to.col });
+    nb[from.row][from.col] = 0;
+    nb[to.row][to.col] = player;
+    // 同步 order：删掉旧项，加新项
+    const oi = no.findIndex(o => o.player === player && o.row === from.row && o.col === from.col);
+    if (oi >= 0) no.splice(oi, 1);
+    no.push({ player, row: to.row, col: to.col });
+  } else {
+    return null;
+  }
+  // 己方满 → 消最早
   if (np[player].length > MAX_PER_SIDE) {
     const old = np[player].shift();
+    removed = old;
     nb[old.row][old.col] = 0;
-    // 同时从 order 里删掉对应最早本方棋子的项，仅保持一致性
     const idx = no.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
     if (idx >= 0) no.splice(idx, 1);
   }
-  return { board: nb, pieces: np, order: no, winner: checkWin(nb) };
+  return { board: nb, pieces: np, order: no, winner: checkWin(nb), removed };
+}
+
+// 保留旧接口 simulate(...) 做兼容（调用 simulateAction + place）
+function simulate(board, pieces, order, row, col, player) {
+  const r = simulateAction(board, pieces, order, { kind: 'place', row, col }, player);
+  if (!r) return { board, pieces, order, winner: 0 };
+  return { board: r.board, pieces: r.pieces, order: r.order, winner: r.winner };
+}
+
+// 枚举所有合法 action（包含 place 和 move 4 邻）
+function enumerateActions(board, pieces, player) {
+  const acts = [];
+  // place
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    if (board[r][c] === 0) acts.push({ kind: 'place', row: r, col: c, scoreBonus: 0 });
+  }
+  // move 4-neighbor
+  const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+  for (const p of pieces[player]) {
+    for (const [dr, dc] of dirs) {
+      const nr = p.row + dr, nc = p.col + dc;
+      if (nr < 0 || nr >= 3 || nc < 0 || nc >= 3) continue;
+      if (board[nr][nc] !== 0) continue;
+      acts.push({ kind: 'move', from: { row: p.row, col: p.col }, to: { row: nr, col: nc }, scoreBonus: 0 });
+    }
+  }
+  return acts;
+}
+
+// 把一个 action 换算成 "落点 key" 给候选红圈动画 / 落子位置显示用
+function actionTargetKey(act) {
+  if (!act) return null;
+  if (act.kind === 'place') return `${act.row}-${act.col}`;
+  return `${act.to.row}-${act.to.col}`;
+}
+function actionTarget(act) {
+  if (!act) return null;
+  if (act.kind === 'place') return { row: act.row, col: act.col };
+  return { row: act.to.row, col: act.to.col };
+}
+function actionFrom(act) {
+  if (!act || act.kind !== 'move') return null;
+  return { row: act.from.row, col: act.from.col };
 }
 
 function availableMoves(board) {
@@ -1098,81 +1201,65 @@ function availableMoves(board) {
   return moves;
 }
 
-// ========== 难度 1: 简单（陪练级）==========
-//   设计目标：让新手/休闲玩家能"正常下完+能赢"，不追求完美防守/连线
-//   决策：
-//     · 60% 概率直接随机（不做赢/堵判断，新手也能轻松连三）
-//     · 40% 才执行浅层启发：
-//         - 看到自己能赢：70% 概率去赢（不是 100%）
-//         - 看到对手要赢：40% 概率去堵（不是 100%，故意放机会）
-//         - 其它仍然随机
+// 注意：新 B 模式 AI 直接基于 enumerateActions + simulateAction
 function aiEasy(board, pieces, order, aiPlayer) {
   const human = aiPlayer === 1 ? 2 : 1;
-  const moves = availableMoves(board);
-  if (moves.length === 0) return null;
+  const acts = enumerateActions(board, pieces, aiPlayer);
+  if (acts.length === 0) return null;
 
-  if (Math.random() < 0.60) {
-    return moves[Math.floor(Math.random() * moves.length)];
+  if (Math.random() < 0.60) return acts[Math.floor(Math.random() * acts.length)];
+  for (const a of acts) {
+    const res = simulateAction(board, pieces, order, a, aiPlayer);
+    if (res && res.winner === aiPlayer && Math.random() < 0.70) return a;
   }
-
-  // 自己能赢吗？70% 把握
-  for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
-    if (res.winner === aiPlayer && Math.random() < 0.70) return m;
+  const humActs = enumerateActions(board, pieces, human);
+  for (const a of humActs) {
+    const res = simulateAction(board, pieces, order, a, human);
+    if (res && res.winner === human && Math.random() < 0.40) {
+      // 用 AI 能立刻挡 / 干扰的任意一个操作：直接返回 AI 的第一个操作（简单策略）
+      return acts[Math.floor(Math.random() * acts.length)];
+    }
   }
-  // 对手能立刻赢吗？40% 去堵
-  for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, human);
-    if (res.winner === human && Math.random() < 0.40) return m;
-  }
-  return moves[Math.floor(Math.random() * moves.length)];
+  return acts[Math.floor(Math.random() * acts.length)];
 }
 
-// ========== 难度 2: 正常（稳定陪练）==========
-//   设计目标：不会犯"送赢/不堵必输"的明显错误，但没有远瞻
-//   决策：
-//     · 100% 立即赢
-//     · 100% 堵对手立即赢
-//     · 否则按位置权重（中心 > 角 > 边）挑个不错的 + 偶尔随机避免呆板
+function posScoreAction(a) {
+  const t = actionTarget(a);
+  if (!t) return 0;
+  if (t.row === 1 && t.col === 1) return 4;
+  if ((t.row === 0 || t.row === 2) && (t.col === 0 || t.col === 2)) return 2;
+  return 1;
+}
+
 function aiNormal(board, pieces, order, aiPlayer) {
   const human = aiPlayer === 1 ? 2 : 1;
-  const moves = availableMoves(board);
-  if (moves.length === 0) return null;
-
-  // 立即赢
-  for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
-    if (res.winner === aiPlayer) return m;
+  const acts = enumerateActions(board, pieces, aiPlayer);
+  if (acts.length === 0) return null;
+  for (const a of acts) {
+    const r = simulateAction(board, pieces, order, a, aiPlayer);
+    if (r && r.winner === aiPlayer) return a;
   }
-  // 堵对手立即赢
-  for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, human);
-    if (res.winner === human) return m;
+  const humActs = enumerateActions(board, pieces, human);
+  const humanWins = humActs.some(a => { const r = simulateAction(board, pieces, order, a, human); return r && r.winner === human; });
+  if (humanWins) {
+    // 遍历自己的每个操作，如果执行后 human 不再能立即赢，就用它（第一个）
+    for (const a of acts) {
+      const r = simulateAction(board, pieces, order, a, aiPlayer);
+      if (!r) continue;
+      const blocks = !enumerateActions(r.board, r.pieces, human).some(h => { const rh = simulateAction(r.board, r.pieces, r.order, h, human); return rh && rh.winner === human; });
+      if (blocks) return a;
+    }
   }
-
-  // 30% 直接随机，避免死板只用中心/角
-  if (Math.random() < 0.30) {
-    return moves[Math.floor(Math.random() * moves.length)];
-  }
-
-  // 位置权重打分：中心(4) > 四角(2) > 四边(1)
-  function posScore(r, c) {
-    if (r === 1 && c === 1) return 4;
-    if ((r === 0 || r === 2) && (c === 0 || c === 2)) return 2;
-    return 1;
-  }
-  let best = moves[0];
-  let bestScore = -Infinity;
-  for (const m of moves) {
-    const s = posScore(m.row, m.col);
-    if (s > bestScore) { bestScore = s; best = m; }
+  if (Math.random() < 0.30) return acts[Math.floor(Math.random() * acts.length)];
+  let best = acts[0], bs = -Infinity;
+  for (const a of acts) {
+    const s = posScoreAction(a);
+    if (s > bs) { bs = s; best = a; }
   }
   return best;
 }
 
-// ========== 难度 3: 困难（Minimax + α-β）==========
-//   完整 5 层 Minimax + αβ 剪枝 + 启发式位置评估
-function aiHard(board, pieces, order, aiPlayer, depth = 5) {
+function aiHard(board, pieces, order, aiPlayer, depth = 4) {
   const human = aiPlayer === 1 ? 2 : 1;
   const MAX_DEPTH = depth;
 
@@ -1196,14 +1283,13 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
     const win = checkWin(b);
     if (win !== 0) return win === aiPlayer ? 10000 - (MAX_DEPTH - d) : -10000 + (MAX_DEPTH - d);
     if (d === 0) return evaluate(b);
-
-    const moves = availableMoves(b);
-    if (moves.length === 0) return evaluate(b);
-
+    const acts = enumerateActions(b, pcs, player);
+    if (acts.length === 0) return evaluate(b);
     if (player === aiPlayer) {
       let best = -Infinity;
-      for (const m of moves) {
-        const after = simulate(b, pcs, ord, m.row, m.col, player);
+      for (const a of acts) {
+        const after = simulateAction(b, pcs, ord, a, player);
+        if (!after) continue;
         const v = minimax(after.board, after.pieces, after.order, human, d - 1, alpha, beta);
         best = Math.max(best, v);
         alpha = Math.max(alpha, v);
@@ -1212,8 +1298,9 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
       return best;
     } else {
       let best = Infinity;
-      for (const m of moves) {
-        const after = simulate(b, pcs, ord, m.row, m.col, player);
+      for (const a of acts) {
+        const after = simulateAction(b, pcs, ord, a, player);
+        if (!after) continue;
         const v = minimax(after.board, after.pieces, after.order, aiPlayer, d - 1, alpha, beta);
         best = Math.min(best, v);
         beta = Math.min(beta, v);
@@ -1223,29 +1310,31 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
     }
   }
 
-  const currentMoves = availableMoves(board);
-  // 先看立即赢
-  for (const m of currentMoves) {
-    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
-    if (after.winner === aiPlayer) return m;
+  const acts = enumerateActions(board, pieces, aiPlayer);
+  if (acts.length === 0) return null;
+  for (const a of acts) {
+    const r = simulateAction(board, pieces, order, a, aiPlayer);
+    if (r && r.winner === aiPlayer) return a;
   }
-  // 堵立即输
-  for (const m of currentMoves) {
-    const after = simulate(board, pieces, order, m.row, m.col, human);
-    if (after.winner === human) return m;
+  const humActs = enumerateActions(board, pieces, human);
+  const humanWins = humActs.some(a => { const r = simulateAction(board, pieces, order, a, human); return r && r.winner === human; });
+  if (humanWins) {
+    for (const a of acts) {
+      const r = simulateAction(board, pieces, order, a, aiPlayer);
+      if (!r) continue;
+      const blocks = !enumerateActions(r.board, r.pieces, human).some(h => { const rh = simulateAction(r.board, r.pieces, r.order, h, human); return rh && rh.winner === human; });
+      if (blocks) return a;
+    }
   }
-
-  let bestMove = currentMoves[0];
-  let bestScore = -Infinity;
-  // 加一点随机性避免完全可预测
-  const candidates = currentMoves.sort(() => Math.random() - 0.5).slice(0, Math.min(5, currentMoves.length));
-
-  for (const m of candidates) {
-    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
-    const score = minimax(after.board, after.pieces, after.order, human, MAX_DEPTH - 1, -Infinity, Infinity);
-    if (score > bestScore) { bestScore = score; bestMove = m; }
+  let bestAct = acts[0], bestScore = -Infinity;
+  const candidates = acts.sort(() => Math.random() - 0.5).slice(0, Math.min(6, acts.length));
+  for (const a of candidates) {
+    const r = simulateAction(board, pieces, order, a, aiPlayer);
+    if (!r) continue;
+    const s = minimax(r.board, r.pieces, r.order, human, MAX_DEPTH - 1, -Infinity, Infinity);
+    if (s > bestScore) { bestScore = s; bestAct = a; }
   }
-  return bestMove;
+  return bestAct;
 }
 
 function aiMove(board, pieces, order, aiPlayer, difficulty) {
@@ -1255,6 +1344,7 @@ function aiMove(board, pieces, order, aiPlayer, difficulty) {
 }
 
 window.AI = { aiMove };
+
 
   </script>
   <script>
@@ -1348,6 +1438,77 @@ class LocalGame {
     }
     return { winner: 0, line: null };
   }
+  // 移动己方棋子到 4 邻空格；移动也算"完成一次操作"，会触发消失链。
+  // 移动后，被移动的子在本方 FIFO 里排到最新（等同于刚放下去）。
+  move(from, to, player) {
+    if (this.status !== 'playing') return { ok: false };
+    if (player !== this.current) return { ok: false };
+    if (!from || !to) return { ok: false };
+    if (this.board[from.row][from.col] !== player) return { ok: false };
+    if (this.board[to.row][to.col] !== 0) return { ok: false };
+    const dr = Math.abs(from.row - to.row), dc = Math.abs(from.col - to.col);
+    if (dr + dc !== 1) return { ok: false }; // 仅 4 邻
+
+    // 1) 执行 board 替换 + FIFO 顺序更新
+    this.board[from.row][from.col] = 0;
+    this.board[to.row][to.col] = player;
+    const pq = this.pieces[player];
+    const pIdx = pq.findIndex(p => p.row === from.row && p.col === from.col);
+    if (pIdx >= 0) { pq.splice(pIdx, 1); }
+    pq.push({ row: to.row, col: to.col });
+    const oIdx = this.order.findIndex(o => o.player === player && o.row === from.row && o.col === from.col);
+    if (oIdx >= 0) this.order.splice(oIdx, 1);
+    this.order.push({ player, row: to.row, col: to.col });
+
+    // 2) 先判胜
+    let win = this._checkWin(this.board);
+    let winner = win.winner, winLine = win.line;
+
+    // 3) 己方 FIFO > 3 → 最早子消失（操作后触发）
+    let removed = null;
+    if (this.pieces[player].length > MAX_PER_SIDE) {
+      const old = this.pieces[player].shift();
+      removed = old;
+      const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
+      if (idx >= 0) this.order.splice(idx, 1);
+      this.board[old.row][old.col] = 0;
+      if (winner !== 0) {
+        const nw = this._checkWin(this.board);
+        winner = nw.winner; winLine = nw.line;
+      }
+    }
+
+    if (winner !== 0) {
+      this.status = 'ended';
+      this.winner = winner;
+      this.winLine = winLine;
+      this.pendingRemove = null;
+      return { ok: true, removed, winner, winLine, pendingRemove: null, current: 0 };
+    }
+
+    const next = this.current === P1 ? P2 : P1;
+    this.current = next;
+    const oldest = this.pieces[this.current][0];
+    if (this.pieces[this.current].length >= MAX_PER_SIDE && oldest) {
+      this.pendingRemove = { player: this.current, row: oldest.row, col: oldest.col };
+    } else {
+      this.pendingRemove = null;
+    }
+    return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
+  }
+  // 返回某己方棋子合法的 4 邻移动目标
+  validMovesOf(player, r, c) {
+    if (this.board[r][c] !== player) return [];
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    const res = [];
+    for (const [dr, dc] of dirs) {
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= 3 || nc < 0 || nc >= 3) continue;
+      if (this.board[nr][nc] !== 0) continue;
+      res.push({ row: nr, col: nc });
+    }
+    return res;
+  }
   snapshot() {
     return {
       board: this.board.map((r) => r.slice()),
@@ -1384,6 +1545,10 @@ const App = {
   aiCandidatesTimer: null,
   aiCandidates: [],          // [{row,col}, ...]
   aiCandidatesActiveIdx: 0,
+  aiSelectedMove: null,      // 如果 action 是 move, 额外记住起始格给视觉
+
+  // 玩家选中：移动前选中己方棋子 {row, col}
+  selected: null,
 
   // 渲染所需快照
   state: null,
@@ -1391,6 +1556,9 @@ const App = {
   // 棋子即将被移除时的"视觉幽灵"（逻辑已移除，但画面再做 600ms 淡出动画）
   // 格式: { player, row, col, timerId }
   visualRemoving: null,
+
+  // 移动视觉幽灵：逻辑已结束移动，但给起点/终点播放一次滑入动画
+  visualSlide: null, // { player, from:{row,col}, to:{row,col}, timerId }
 
   // 管理移除动画：在逻辑已经移除棋子后，再挂一个视觉幽灵，等动画结束再消失
   stageRemovingVisual(removed) {
@@ -1579,6 +1747,8 @@ const App = {
     this.mode = 'local';
     this.local = new LocalGame();
     this.state = this.local.snapshot();
+    this.selected = null;
+    this.visualSlide = null;
     this.clearAiTimer(true);
     this.aiCandidates = [];
     this.stopAiCandidateCycle();
@@ -1963,19 +2133,83 @@ const App = {
       const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
       if (this.state.current !== humanPlayer) return;
       if (this.aiTimer) return;                    // AI 思考中，点不了
-      if (this.local.board[row][col] !== 0) return;
-      const res = this.local.place(row, col, humanPlayer);
-      if (!res.ok) return;
-      this.state = this.local.snapshot();
-      // 落子后有棋子消失，挂视觉幽灵播放淡出动画（逻辑已移除）
-      if (res.removed) this.stageRemovingVisual(res.removed);
-      this.updateRestartButton();
-      this.render();
 
-      // AI 自动下（候选红圈动画 + 慢速落子）—— 推迟到下一帧，保证首帧渲染就绪
-      if (this.state.status === 'playing' && this.state.current === aiPlayer) {
-        const aiRef = aiPlayer;
-        setTimeout(() => this.scheduleAiMove(aiRef), 60);
+      const cellVal = this.local.board[row][col];
+
+      // 已选中己方棋子
+      if (this.selected) {
+        // 再点另一个己方棋子 = 切换选中
+        if (cellVal === humanPlayer) {
+          this.selected = { row, col };
+          this.render();
+          return;
+        }
+        // 点空格：
+        //   1) 若是当前选中棋子合法 4 邻目标 → 移动
+        //   2) 否则 → 当作落子（并取消选中）
+        if (cellVal === 0) {
+          const targets = this.local.validMovesOf(humanPlayer, this.selected.row, this.selected.col);
+          const isTarget = targets.some(t => t.row === row && t.col === col);
+          if (isTarget) {
+            const from = { row: this.selected.row, col: this.selected.col };
+            const to = { row, col };
+            const res = this.local.move(from, to, humanPlayer);
+            if (!res.ok) return;
+            this.selected = null;
+            this.visualSlide = { player: humanPlayer, from, to, timerId: null };
+            this.state = this.local.snapshot();
+            if (res.removed) this.stageRemovingVisual(res.removed);
+            this.updateRestartButton();
+            this.render();
+            // 清理视觉滑入
+            const t = setTimeout(() => { this.visualSlide = null; this.render(); }, 600);
+            this.visualSlide.timerId = t;
+
+            if (this.state.status === 'playing' && this.state.current === aiPlayer) {
+              const aiRef = aiPlayer;
+              setTimeout(() => this.scheduleAiMove(aiRef), 60);
+            }
+            return;
+          } else {
+            // 不合法：就视为要在该空格落子（"选中状态下的落子"）
+            this.selected = null;
+            const res = this.local.place(row, col, humanPlayer);
+            if (!res.ok) return;
+            this.state = this.local.snapshot();
+            if (res.removed) this.stageRemovingVisual(res.removed);
+            this.updateRestartButton();
+            this.render();
+            if (this.state.status === 'playing' && this.state.current === aiPlayer) {
+              const aiRef = aiPlayer;
+              setTimeout(() => this.scheduleAiMove(aiRef), 60);
+            }
+            return;
+          }
+        }
+        // 点对方子：忽略
+        return;
+      }
+
+      // 未选中：
+      if (cellVal === humanPlayer) {
+        // 选中己方棋子（只在有 4 邻空格时提示也无妨，但这里统一允许选中）
+        this.selected = { row, col };
+        this.render();
+        return;
+      }
+      if (cellVal === 0) {
+        // 空格直接落子
+        const res = this.local.place(row, col, humanPlayer);
+        if (!res.ok) return;
+        this.state = this.local.snapshot();
+        if (res.removed) this.stageRemovingVisual(res.removed);
+        this.updateRestartButton();
+        this.render();
+        if (this.state.status === 'playing' && this.state.current === aiPlayer) {
+          const aiRef = aiPlayer;
+          setTimeout(() => this.scheduleAiMove(aiRef), 60);
+        }
+        return;
       }
       return;
     }
@@ -2003,18 +2237,19 @@ const App = {
     const preStay = Math.floor(cyclePeriod * (0.4 + Math.random() * 0.2)); // 0.4~0.6 倍 ≈ 560~960ms
     const freezeDuration = cyclePeriod;
 
-    // === 1) 计算 AI 真实着法 ===
-    const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
-    if (!move) {
+    // === 1) 计算 AI 真实着法（action = place 或 move） ===
+    const action = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
+    if (!action) {
       this.clearAiTimer(true);
       this.stopAiCandidateCycle();
       this.setBoardDisabled(false);
       this.render();
       return;
     }
-    const moveKey = `${move.row}-${move.col}`;
+    const moveKey = actionTargetKey(action);
+    this.aiSelectedMove = action;
 
-    // === 2) 构造线性候选序列：[startFake, maybeFake, moveKey] — moveKey 永远在末尾 ===
+    // === 2) 构造线性候选序列：[startFake, maybeFake, moveKey] — moveKey 永远在末尾
     const empties = [];
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
       if (this.local.board[r][c] === 0) {
@@ -2022,30 +2257,28 @@ const App = {
         if (k !== moveKey) empties.push(k);
       }
     }
-    // 打乱空格（不含 moveKey）
     for (let i = empties.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [empties[i], empties[j]] = [empties[j], empties[i]];
     }
-    // 假位置数：1 或 2（各 50%），受空格数限制
     const maxFake = Math.max(0, Math.min(2, empties.length));
     const fakeCount = Math.max(0, Math.min(maxFake, 1 + Math.floor(Math.random() * 2)));
     const pickedFakes = empties.slice(0, fakeCount);
-    const candidates = [...pickedFakes, moveKey];   // 线性顺序：假→…→真
-    const N = candidates.length;                     // 2 或 3（只剩 1 空格时 N=1，也 OK）
-    const switches = N - 1;                          // 切换步数 = 1 或 2
+    const candidates = [...pickedFakes, moveKey];
+    const N = candidates.length;
+    const switches = N - 1;
     this.aiCandidates = candidates;
-    this.aiCandidatesActiveIdx = 0;                  // T=0 显示第一个（随机开始假位置）
-    this.render();                                   // 触发 candidateIn 渐入
+    this.aiCandidatesActiveIdx = 0;
+    this.render();
 
-    // === 3) 时间线（preStay、cyclePeriod、freeze 都是上方直接独立随机出来的）===
+    // === 3) 时间线 ===
     const arriveAtMoveKeyTime = preStay + switches * cyclePeriod;
 
-    // === 4) 线性排好每一次切换（1 或 2 下），每切一下只走下一个候选（非循环）===
+    // === 4) 线性排好每一次切换 ===
     this._aiStepTimers = [];
     for (let k = 1; k <= switches; k++) {
       const fireAt = preStay + k * cyclePeriod;
-      const stepIdx = k;   // 切到 candidates[k]；最后 k=switches 时 stepIdx=N-1=moveKey
+      const stepIdx = k;
       const t = setTimeout(() => {
         this.aiCandidatesActiveIdx = stepIdx;
         this.render();
@@ -2053,17 +2286,29 @@ const App = {
       this._aiStepTimers.push(t);
     }
 
-    // === 5) 最后到达 moveKey → 定格 → 落下 ===
+    // === 5) 最后到达 moveKey → 定格 → 执行 action（place 或 move） ===
     this.aiTimer = setTimeout(() => {
-      // 保险：到达时 activeIdx 一定是 N-1 (moveKey)
       if (this.aiCandidatesActiveIdx !== N - 1) {
         this.aiCandidatesActiveIdx = N - 1;
         this.render();
       }
-      // 按同样间隔定格展示后落下
       this.aiTimer = setTimeout(() => {
-        this.stopAiCandidateCycle();   // 清空 candidates/计时器
-        const res = this.local.place(move.row, move.col, aiPlayerNum);
+        this.stopAiCandidateCycle();
+        let res = null;
+        let slideFrom = null, slideTo = null;
+        if (action.kind === 'place') {
+          res = this.local.place(action.row, action.col, aiPlayerNum);
+        } else {
+          slideFrom = { row: action.from.row, col: action.from.col };
+          slideTo   = { row: action.to.row,   col: action.to.col };
+          res = this.local.move(slideFrom, slideTo, aiPlayerNum);
+          if (res && res.ok) {
+            this.visualSlide = { player: aiPlayerNum, from: slideFrom, to: slideTo, timerId: null };
+            const t = setTimeout(() => { this.visualSlide = null; this.render(); }, 600);
+            this.visualSlide.timerId = t;
+          }
+        }
+        this.aiSelectedMove = null;
         this.aiTimer = null;
         this.state = this.local.snapshot();
         if (res && res.removed) this.stageRemovingVisual(res.removed);
@@ -2092,6 +2337,8 @@ const App = {
           this.stopAiCandidateCycle();
           this.clearRemovingVisual(false);
           this._resetCellRenderKeys();
+          this.selected = null;
+          this.visualSlide = null;
           this.local.reset();
           this.state = this.local.snapshot();
           this.hideEndBanner();
@@ -2150,65 +2397,98 @@ const App = {
   render() {
     if (!this.state) return;
 
-    // ===== 每个单元格使用"渲染签名 + 缓存"，只在内容真正变化时重建 DOM
-    // 目的：AI 候选切换动画时，不变的棋子（尤其是带 .fading 闪烁动画的）不会被销毁重建 → 动画流畅不卡
     const pendingRemove = this.state.pendingRemove;
     const visualR = this.visualRemoving;
+    const slide = this.visualSlide;
+
+    // B 模式：计算当前选中棋子可 4 邻移动的目标集合
+    const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
+    let moveTargetKeys = new Set();
+    if (this.mode === 'local' && this.selected) {
+      const tgts = this.local.validMovesOf(humanPlayer, this.selected.row, this.selected.col);
+      for (const t of tgts) moveTargetKeys.add(`${t.row}-${t.col}`);
+    }
+    const selKey = this.selected ? `${this.selected.row}-${this.selected.col}` : null;
+
     const cells = document.querySelectorAll('.cell');
     cells.forEach((el) => {
       const row = parseInt(el.dataset.row, 10);
       const col = parseInt(el.dataset.col, 10);
+      const k = `${row}-${col}`;
       const v = this.state.board[row][col];
+      const isSlideFrom = slide && slide.from.row === row && slide.from.col === col;
+      const isSlideTo   = slide && slide.to.row === row && slide.to.col === col;
 
-      // 计算本单元格"应渲染内容"的唯一签名 key
-      // 形式: piece-p1-fading  /  piece-p2-removing  /  cand-active  /  cand-dim  /  empty  /  win
+      // 构建签名：包含 piece 本体/闪烁/选中/移动目标/slide 起始和终点/AI 候选
       let key;
-      if (v !== 0) {
-        key = 'p'; // 有棋
+      if (v !== 0 || isSlideFrom) {
+        const player = v !== 0 ? v : slide.player;
         const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
-        key += v + (isFading ? '-F' : '');
+        const isSel = (selKey === k) || (slide && isSlideFrom);
+        key = 'p' + player + (isFading ? 'F' : '') + (isSel ? 'S' : '');
+        if (isSlideFrom) key += 'sF';
       } else {
-        // 空棋格
         if (visualR && visualR.row === row && visualR.col === col) {
-          key = 'g' + visualR.player; // ghost 幽灵消失棋
+          key = 'g' + visualR.player;
+        } else if (isSlideTo) {
+          key = 'sT' + slide.player;
+        } else if (this.mode === 'local' && moveTargetKeys.has(k)) {
+          key = 'mT'; // move target
         } else if (this.mode === 'local' && this.aiCandidates.length > 0) {
-          const candIdx = this.aiCandidates.indexOf(`${row}-${col}`);
+          const candIdx = this.aiCandidates.indexOf(k);
           if (candIdx > -1) {
             const active = (candIdx === this.aiCandidatesActiveIdx);
-            key = active ? 'cA' : 'cD'; // candidate Active / Dim
+            key = active ? 'cA' : 'cD';
           } else {
-            key = 'e'; // empty
+            key = 'e';
           }
         } else {
-          key = 'e'; // empty
+          key = 'e';
         }
       }
 
-      // 签名没变 → DOM 可以保留（例如只切AI候选active/dim在别的格子，不影响这里的闪烁棋子）
-      // 例外：候选 dim→active / active→dim 也需要更新，这个已经包含在 key ('cA' vs 'cD') 中
       if (el.dataset._k === key) return;
       el.dataset._k = key;
-
-      // 真正需要重绘时才清空并重写
       el.innerHTML = '';
 
-      if (v !== 0) {
+      if (v !== 0 || isSlideFrom) {
+        const player = v !== 0 ? v : slide.player;
         const piece = document.createElement('div');
-        piece.className = 'piece p' + v;
+        piece.className = 'piece p' + player;
         const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
         if (isFading) piece.classList.add('fading');
-        piece.classList.add('drop');
-        requestAnimationFrame(() => piece.classList.remove('drop'));
-        piece.innerHTML = this._gemSVG(v);
+        const isSel = (selKey === k) || isSlideFrom;
+        if (isSel) piece.classList.add('selected');
+        if (isSlideFrom) {
+          piece.classList.add('slide-from');
+          const dx = (slide.to.col - slide.col);
+          const dy = (slide.to.row - slide.row);
+          requestAnimationFrame(() => {
+            piece.style.transform = `translate(calc(${dx} * (100% + var(--gap, 8px))), calc(${dy} * (100% + var(--gap, 8px))))`;
+          });
+        } else {
+          piece.classList.add('drop');
+          requestAnimationFrame(() => piece.classList.remove('drop'));
+        }
+        piece.innerHTML = this._gemSVG(player);
         el.appendChild(piece);
       } else if (visualR && visualR.row === row && visualR.col === col) {
-        // 逻辑上已消失的棋子，再播放一次 600ms 淡出动画作为视觉过渡
         const piece = document.createElement('div');
         piece.className = 'piece p' + visualR.player + ' removing-out';
         piece.innerHTML = this._gemSVG(visualR.player);
         el.appendChild(piece);
+      } else if (isSlideTo) {
+        // 移动目标位置：放一个渐入 piece（slide-to）
+        const piece = document.createElement('div');
+        piece.className = 'piece p' + slide.player + ' slide-to';
+        piece.innerHTML = this._gemSVG(slide.player);
+        el.appendChild(piece);
+      } else if (this.mode === 'local' && moveTargetKeys.has(k)) {
+        const cv = document.createElement('div');
+        cv.className = 'move-target';
+        el.appendChild(cv);
       } else if (this.mode === 'local' && this.aiCandidates.length > 0) {
-        const candIdx = this.aiCandidates.indexOf(`${row}-${col}`);
+        const candIdx = this.aiCandidates.indexOf(k);
         if (candIdx > -1) {
           const cv = document.createElement('div');
           const active = (candIdx === this.aiCandidatesActiveIdx);
@@ -2218,8 +2498,6 @@ const App = {
       }
     });
 
-    // 赢线（.win 类）属于单元格额外状态，与签名解耦，单独刷新
-    // 先清除，再加
     cells.forEach((el) => el.classList.remove('win'));
     const winLine = this.state.winLine;
     if (winLine && this.state.status === 'ended') {
@@ -2229,8 +2507,6 @@ const App = {
       }
     }
 
-    // 棋盘禁用态（AI 思考 / 对局结束）
-    const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
     if (this.state.status === 'ended') {
       this.setBoardDisabled(true);
     } else if (this.mode === 'local') {
@@ -2239,7 +2515,6 @@ const App = {
 
     this.renderTurnIndicator();
 
-    // 结束显示：横幅按钮区 + 联机投票条
     if (this.state.status === 'ended') {
       this.renderEndBanner();
       if (this.mode === 'online') this.renderRematchBar();
