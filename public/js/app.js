@@ -729,14 +729,14 @@ const App = {
     // ======== 用户指定的严格时序（线性非循环）========
     //   结构：[随机开始假位置, (1 个可选假位置), 实际要下的 moveKey]
     //   数量：1-2 个假 + moveKey → 总候选 N = 2 或 3
-    //   时间：preStay（起始停留，把总时长撑到 6s+ 保证 1.5 个闪烁周期）
-    //         + (N-1) × cyclePeriod   ← 每段切到下一个候选，只切 1~2 下（不是几轮循环）
-    //         + 1 × freezeDuration = cyclePeriod  ← 定格在 moveKey 上按同样间隔
+    //   时间：preStay = 1.5-2s（起始停留，不再把时间拉到 6s+）
+    //         + (N-1) × cyclePeriod  ← 每段切到下一个候选，只切 1~2 下
+    //         + freeze = 0.5-1s      ← 定格在 moveKey 上（用户要求缩短）
     //         → 实际落下
-    const aiTotalFloor = 6000;
-    const aiTotalTime = aiTotalFloor + Math.floor(Math.random() * 1700); // 6000..7699
+    //   不再严格遵守"≥1.5 个闪烁周期"的要求
+    const preStay = 1500 + Math.floor(Math.random() * 501);              // 1500..2000
     const cyclePeriod = 1400 + Math.floor(Math.random() * 201);          // 1400..1600
-    const freezeDuration = cyclePeriod;
+    const freezeDuration = 500 + Math.floor(Math.random() * 501);        // 500..1000
 
     // === 1) 计算 AI 真实着法 ===
     const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
@@ -773,13 +773,7 @@ const App = {
     this.aiCandidatesActiveIdx = 0;                  // T=0 显示第一个（随机开始假位置）
     this.render();                                   // 触发 candidateIn 渐入
 
-    // === 3) 计算每段时长，保证 总时长 ≥ 6s ===
-    const switchesAndFreeze = switches * cyclePeriod + freezeDuration;
-    // preStay：起始位置停留的"思考缓冲"，把剩下的时间吃掉，避免多切几下才凑够 6s
-    let preStay = aiTotalTime - switchesAndFreeze;
-    if (preStay < 0) { // 极罕见（cyclePeriod 极大时），整体抬高 aiTotalTime
-      preStay = 0;
-    }
+    // === 3) 时间线（preStay、cyclePeriod、freeze 都是上方直接独立随机出来的）===
     const arriveAtMoveKeyTime = preStay + switches * cyclePeriod;
 
     // === 4) 线性排好每一次切换（1 或 2 下），每切一下只走下一个候选（非循环）===
