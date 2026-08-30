@@ -194,8 +194,8 @@
     <div style="height:20px"></div>
     <div class="legend card">
       <b>规则（简化版）：</b><br>
-      · 空棋盘开局，每回合 <b>放子</b> 或 <b>移动</b> 二选一（顶栏切换）<br>
-      · <b>放子</b>：点击任意空格落子；<b>移动</b>：选中己方棋子，向设定的 4/8 邻方向走一格到空格<br>
+      · 空棋盘开局，每回合 <b>放子</b> 或 <b>移动</b> 二选一（无需切Tab，点击即知）<br>
+      · <b>放子</b>：点击任意空格落子；<b>移动</b>：点己方棋子选中（绿色可移动目标出现），再点目标格完成移动<br>
       · 放子/移动落位后，按标准 8 方向检查「己方→对方连续→己方」夹击：<br>
       &nbsp;&nbsp;- 如果触发：中间所有对方棋子翻为己方颜色（染色）<br>
       &nbsp;&nbsp;- 如果不触发：纯占位/纯移动，不做额外操作，也不算犯规<br>
@@ -220,8 +220,6 @@
     </div>
 
     <div class="actions">
-      <div class="tab active" id="tabPlace">🎯 放置</div>
-      <div class="tab" id="tabMove">↔️ 移动</div>
       <div style="flex:1"></div>
       <div class="tab" id="btnRematch">🔄 重开</div>
       <div class="tab" id="btnExit">↩️ 改设定</div>
@@ -258,8 +256,7 @@
   // ======================= State =======================
   let cfg = null;          // { moveK: 4|8, diff: 'easy'|'std', me: 1|2 }
   let game = null;         // game state
-  let mode = 'place';      // 'place' | 'move'
-  let movingSel = null;    // {r,c} if user picked own piece in move mode
+  let movingSel = null;    // {r,c} if user picked own piece for move
   let aiThinking = false;
   let aiTimer = null;
 
@@ -454,7 +451,8 @@
 
     document.getElementById('turnChip').textContent = `回合 ${game.stepN} · 棋子不消失`;
 
-    // Valid action maps (for hints, new rules: all empty cells valid place; all moves to adjacent empty cells valid)
+    // 提示高亮集合
+    // 合并交互规则:点击空格=放子; 点击己方棋子=选中并展示移动目标; 点选中子取消
     let validPlaceSet = null, validMoveDestBySel = null, myPiecesMovable = new Set();
     if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
       validPlaceSet = new Set();
@@ -491,18 +489,10 @@
       if (extra.flipSet && extra.flipSet.has(r+','+c)) el.classList.add('flipping');
 
       if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
-        if (mode === 'place') {
-          if (validPlaceSet && validPlaceSet.has(r+','+c)) el.classList.add('place-hint');
-        } else { // move
-          if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
-          const dests = validMoveDestBySel ? validMoveDestBySel[movingSel && (movingSel.r+','+movingSel.c)] : null;
-          if (dests && dests.has(r+','+c)) el.classList.add('move-hint');
-          // 如果当前cell是可移动的己方棋子(有可到达的合法目标)，给个淡提示避免用户点错
-          if (myPiecesMovable && myPiecesMovable.has(r+','+c) && !movingSel) {
-            // leave as piece; just ensure not dim
-          }
-        }
-        // 如果合法动作集合是空的(说明本回合会自动pass) 也不高亮 等上层banner提示
+        if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
+        const dests = validMoveDestBySel ? validMoveDestBySel[movingSel && (movingSel.r+','+movingSel.c)] : null;
+        if (dests && dests.has(r+','+c)) el.classList.add('move-hint');
+        else if (v === 0 && validPlaceSet && validPlaceSet.has(r+','+c)) el.classList.add('place-hint');
       } else {
         el.classList.add('disabled');
       }
@@ -522,11 +512,6 @@
       banner.classList.remove('show');
     }
 
-    // Mode tabs
-    const tp = document.getElementById('tabPlace'), tm = document.getElementById('tabMove');
-    tp.classList.toggle('active', mode==='place');
-    tm.classList.toggle('active', mode==='move');
-
     const hint = document.getElementById('hint');
     if (game.status !== 'playing') {
       hint.textContent = '对局结束';
@@ -538,42 +523,49 @@
       const hasAny = (listAllActions(cfg.me).length > 0);
       if (!hasAny) {
         hint.textContent = '⚠️ 本回合你没空格可放也没棋可动，对局按子数多者胜结算';
-      } else if (mode === 'place') {
-        hint.textContent = '放置模式：点带虚线框的空格落子，如形成夹击则中间子被染色';
       } else if (!movingSel) {
-        hint.textContent = '移动模式：点你的一颗棋子（必须有相邻空格）';
+        hint.textContent = '点击虚线空格 = 放子；点击你的一颗棋子 = 选中并显示可移动目标（绿色框）';
       } else {
-        hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格移动，落位后如形成夹击则染色；再次点已选棋取消选择`;
+        hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格移动；再次点已选棋或另一颗己方可换选；点其它空格 = 取消选中并直接放子`;
       }
     }
   }
 
   // ======================= User interactions =======================
+  // 合并交互：点击空格 = 放子；点击己方棋子 = 选中(显示绿色可移动目标)；再次点已选棋取消；选中时点击合法目标格移动；选中时点击别的己方棋子 = 切换选中；选中时点击其它(非目标)空格 = 取消选中并直接放子
   function onCellClick(e) {
     if (game.status!=='playing' || aiThinking) return;
     if (game.current !== cfg.me) return;
     const r = +e.currentTarget.dataset.r;
     const c = +e.currentTarget.dataset.c;
+    const v = game.board[r][c];
 
-    if (mode === 'place') {
-      if (game.board[r][c]!==0) return;
-      performUserAction(()=>doPlace(r,c,cfg.me));
-    } else { // move
-      if (!movingSel) {
-        if (game.board[r][c] !== cfg.me) return;
-        if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋周围没有相邻空格可动'); return; }
-        movingSel = {r,c}; render(); return;
+    // Case 1: cell is empty
+    if (v === 0) {
+      // Is it a valid move destination of selection?
+      if (movingSel && isDestOf(movingSel.r, movingSel.c, r, c)) {
+        const fr = movingSel.r, fc = movingSel.c;
+        movingSel = null;
+        performUserAction(()=>doMove(fr,fc,r,c,cfg.me));
+        return;
       }
-      if (movingSel.r===r && movingSel.c===c) { movingSel=null; render(); return; }
-      if (game.board[r][c] === cfg.me) {
-        if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋没有相邻空格可动'); return; }
-        movingSel = {r,c}; render(); return;
-      }
-      if (!isDestOf(movingSel.r, movingSel.c, r, c)) { flashHint('不能移动到这里（必须是合法的相邻空格）'); return; }
-      const fr = movingSel.r, fc = movingSel.c;
+      // Treat as place
       movingSel = null;
-      performUserAction(()=>doMove(fr,fc,r,c,cfg.me));
+      performUserAction(()=>doPlace(r,c,cfg.me));
+      return;
     }
+
+    // Case 2: own piece clicked
+    if (v === cfg.me) {
+      if (movingSel && movingSel.r===r && movingSel.c===c) { movingSel=null; render(); return; }
+      if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋周围没有相邻空格可动，不能选择'); movingSel=null; render(); return; }
+      movingSel = {r,c};
+      render();
+      return;
+    }
+
+    // Case 3: enemy piece — cancel selection only
+    if (movingSel) { movingSel = null; render(); }
   }
 
   function pieceHasMoves(r,c,player) {
@@ -717,14 +709,6 @@
   }
 
   // ======================= Tabs & buttons =======================
-  document.getElementById('tabPlace').addEventListener('click', ()=>{
-    if (aiThinking || game.status!=='playing' || game.current!==cfg.me) return;
-    mode='place'; movingSel=null; render();
-  });
-  document.getElementById('tabMove').addEventListener('click', ()=>{
-    if (aiThinking || game.status!=='playing' || game.current!==cfg.me) return;
-    mode='move'; movingSel=null; render();
-  });
   document.getElementById('btnRematch').addEventListener('click', ()=>{ startGame(); });
   document.getElementById('btnBannerRestart').addEventListener('click', ()=>{ startGame(); });
   document.getElementById('btnExit').addEventListener('click', backToSetup);
@@ -738,7 +722,6 @@
 
   function startGame() {
     game = newGame();
-    mode = 'place';
     movingSel = null;
     aiThinking = false;
     clearTimeout(aiTimer);
