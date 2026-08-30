@@ -56,26 +56,42 @@ function availableMoves(board) {
   return moves;
 }
 
-// ========== 难度 1: 简单 ==========
+// ========== 难度 1: 简单（陪练级）==========
+//   设计目标：让新手/休闲玩家能"正常下完+能赢"，不追求完美防守/连线
+//   决策：
+//     · 60% 概率直接随机（不做赢/堵判断，新手也能轻松连三）
+//     · 40% 才执行浅层启发：
+//         - 看到自己能赢：70% 概率去赢（不是 100%）
+//         - 看到对手要赢：40% 概率去堵（不是 100%，故意放机会）
+//         - 其它仍然随机
 function aiEasy(board, pieces, order, aiPlayer) {
   const human = aiPlayer === 1 ? 2 : 1;
   const moves = availableMoves(board);
+  if (moves.length === 0) return null;
 
-  // 先找能赢的
+  if (Math.random() < 0.60) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  // 自己能赢吗？70% 把握
   for (const m of moves) {
     const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
-    if (res.winner === aiPlayer) return m;
+    if (res.winner === aiPlayer && Math.random() < 0.70) return m;
   }
-  // 再找必须堵的
+  // 对手能立刻赢吗？40% 去堵
   for (const m of moves) {
     const res = simulate(board, pieces, order, m.row, m.col, human);
-    if (res.winner === human) return m;
+    if (res.winner === human && Math.random() < 0.40) return m;
   }
-  // 随机
   return moves[Math.floor(Math.random() * moves.length)];
 }
 
-// ========== 难度 2: 正常 ==========
+// ========== 难度 2: 正常（稳定陪练）==========
+//   设计目标：不会犯"送赢/不堵必输"的明显错误，但没有远瞻
+//   决策：
+//     · 100% 立即赢
+//     · 100% 堵对手立即赢
+//     · 否则按位置权重（中心 > 角 > 边）挑个不错的 + 偶尔随机避免呆板
 function aiNormal(board, pieces, order, aiPlayer) {
   const human = aiPlayer === 1 ? 2 : 1;
   const moves = availableMoves(board);
@@ -92,30 +108,28 @@ function aiNormal(board, pieces, order, aiPlayer) {
     if (res.winner === human) return m;
   }
 
-  // 2 层前瞻打分
+  // 30% 直接随机，避免死板只用中心/角
+  if (Math.random() < 0.30) {
+    return moves[Math.floor(Math.random() * moves.length)];
+  }
+
+  // 位置权重打分：中心(4) > 四角(2) > 四边(1)
+  function posScore(r, c) {
+    if (r === 1 && c === 1) return 4;
+    if ((r === 0 || r === 2) && (c === 0 || c === 2)) return 2;
+    return 1;
+  }
   let best = moves[0];
   let bestScore = -Infinity;
-
   for (const m of moves) {
-    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
-    if (after.winner === aiPlayer) return m;
-
-    // 对手最好回应
-    let worst = -Infinity;
-    const enemyMoves = availableMoves(after.board);
-    for (const em of enemyMoves) {
-      const eAfter = simulate(after.board, after.pieces, after.order, em.row, em.col, human);
-      if (eAfter.winner === human) { worst = 100; break; }
-      if (eAfter.winner === aiPlayer) { worst = -100; continue; }
-      worst = Math.max(worst, 0);
-    }
-    const score = -worst;
-    if (score > bestScore) { bestScore = score; best = m; }
+    const s = posScore(m.row, m.col);
+    if (s > bestScore) { bestScore = s; best = m; }
   }
   return best;
 }
 
-// ========== 难度 3: 困难 ==========
+// ========== 难度 3: 困难（Minimax + α-β）==========
+//   完整 5 层 Minimax + αβ 剪枝 + 启发式位置评估
 function aiHard(board, pieces, order, aiPlayer, depth = 5) {
   const human = aiPlayer === 1 ? 2 : 1;
   const MAX_DEPTH = depth;
