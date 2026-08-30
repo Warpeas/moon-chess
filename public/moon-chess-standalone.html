@@ -837,9 +837,9 @@ body::after {
         </svg>
       </div>
       <h1>月蚀棋</h1>
-      <p class="subtitle">Moon Chess · 原神原版 · 先连三者胜，每方同时最多三颗</p>
+      <p class="subtitle">Moon Chess · 原神原版 · 先连三者胜 · 全局最多 5 颗</p>
       <p class="rules-hint">
-        3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：轮到己方下子时，若己方已 3 颗，则<b>己方最早子不消失，只是闪烁警告</b>——当你<b>放下新子</b>的那一瞬，己方第 4 子加入队列，原来最早那一颗才<b>消逝</b>。
+        3×3 棋盘，先连成三子者胜。<b>全局棋盘最多同时有 5 颗棋子</b>：下到第 6 颗开始，<b>全局最旧</b>的那一颗会被"蚀掉"。棋盘达到 5 颗时，全局最旧那颗会<b>闪烁警告</b>——无论哪一方<b>再下一颗新子</b>，它都会立刻<b>消逝</b>。
       </p>
     </div>
 
@@ -847,10 +847,10 @@ body::after {
       <button class="btn primary" id="btn-local">
         <span class="btn-icon">✦</span> 单机对战
       </button>
-      <button class="btn" id="btn-online-create" style="display:none">
+      <button class="btn" id="btn-online-create">
         <span class="btn-icon">◈</span> 创建联机房间
       </button>
-      <button class="btn" id="btn-online-join" style="display:none">
+      <button class="btn" id="btn-online-join">
         <span class="btn-icon">◇</span> 加入房间
       </button>
       <a class="btn" href="index.html" style="text-decoration:none;text-align:center">
@@ -859,7 +859,7 @@ body::after {
     </div>
 
     <footer class="footer">
-      <span>⚡ 先连三者胜 · 每方同时最多三颗 · 己方回合己方最早子闪烁 → 放新子后消逝</span>
+      <span>⚡ 先连三者胜 · 全局最多 5 颗 · 满 5 时全局最旧子闪烁 → 再落子时被蚀掉</span>
     </footer>
   </section>
 
@@ -1004,43 +1004,64 @@ body::after {
     </div>
   </div>
   <script>
-window.MOON_CHESS_STANDALONE = true;
-if (typeof window.io !== "function") {
-  window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
-}
-window.__moon_chess_showOnlineTip = function() {
-  var TIP_ID = '__mc_online_tip_v3__';
-  if (document.getElementById(TIP_ID)) return;
-  var wrap = document.createElement('div');
-  wrap.id = TIP_ID;
-  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
-  var dialog = document.createElement('div');
-  dialog.style.cssText = 'max-width:440px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
-  var h3 = document.createElement('h3');
-  h3.textContent = '联机对战提示';
-  h3.style.cssText = 'margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
-  var p = document.createElement('p');
-  p.innerHTML = '当前是纯静态分享版本，<b style="color:#4cc9f0">单机对战（含三档 AI、慢速思考+预选提示、消失闪烁、重开确认、横幅结果、响应式）全部正常</b>。联机对战（房间邀请制、实时同步）需要部署 Node WebSocket 服务端。';
-  p.style.cssText = 'color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
-  var pre = document.createElement('pre');
-  pre.style.cssText = 'background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px';
-  pre.textContent = '【推荐 Koyeb 免费层一键部署（无需绑卡）】\nhttps://app.koyeb.com/apps/deploy?type=git&repository=github.com/Warpeas/moon-chess&branch=main&builder=dockerfile&ports=3000;http;/&name=moon-chess\n\n【Docker 自托管】\ndocker build -t moon-chess . && docker run -p 3000:3000 moon-chess';
-  var btn = document.createElement('button');
-  btn.textContent = '知道了';
-  btn.style.cssText = 'width:100%;padding:10px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
-  btn.onclick = function(){ wrap.remove(); };
-  dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
-  wrap.appendChild(dialog);
-  document.body.appendChild(wrap);
-};
+(function () {
+  // 环境判断：
+  //   · GitHub Pages (warpeas.github.io/moon-chess/ 或任意 *.github.io)
+  //   · file:// 本地直接打开
+  //   · 自定义域名 / 自托管服务器（Docker / Koyeb / Railway 等 + Node server/io() 可用）
+  var host = (location && location.hostname) || '';
+  var proto = (location && location.protocol) || '';
+  var isGitHubIo = /(^|\.)github\.io$/i.test(host) || /(^|\.)pages\.dev$/i.test(host);
+  var isLocalFile = /^file:/i.test(proto);
+  // 若 socket.io 没注入（纯静态）也当作静态环境
+  var hasSocketIO = typeof window.io === 'function' && !window.__MC_IO_SHIMMED__;
+
+  var isStatic = !hasSocketIO || isGitHubIo || isLocalFile;
+
+  window.__MC_DEPLOY_MODE__ = isStatic ? 'STATIC' : 'SOCKET';
+  window.MOON_CHESS_STANDALONE = isStatic; // 仅 STATIC 才跳过联机
+
+  if (!hasSocketIO) {
+    window.__MC_IO_SHIMMED__ = true;
+    window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
+  }
+
+  function showOnlineTip() {
+    var TIP_ID = '__mc_online_tip_v4__';
+    if (document.getElementById(TIP_ID)) return;
+    var wrap = document.createElement('div');
+    wrap.id = TIP_ID;
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+    var dialog = document.createElement('div');
+    dialog.style.cssText = 'max-width:460px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
+    var h3 = document.createElement('h3');
+    h3.textContent = '联机对战 · 部署提示';
+    h3.style.cssText = 'margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
+    var p = document.createElement('p');
+    p.innerHTML = '当前部署在 <b style="color:#ffd9ee">'+(isLocalFile?'本地 file:// 直接打开':'GitHub Pages 纯静态环境')+'</b>，它<u>不支持</u> WebSocket 实时同步。<br>单机对战（AI、思考红圈、闪烁/消逝/重开、响应式）<b style="color:#4cc9f0">全部正常</b>。<br>联机对战（创建/加入房间、实时同步、邀请制）需要部署支持 HTTP + WebSocket 的服务器。';
+    p.style.cssText = 'color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
+    var pre = document.createElement('pre');
+    pre.style.cssText = 'background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px;white-space:pre-wrap;word-break:break-all';
+    pre.textContent = '【推荐 · Koyeb 免费层一键部署（无需绑卡）】\nhttps://app.koyeb.com/apps/deploy?type=git&repository=github.com/Warpeas/moon-chess&branch=main&builder=dockerfile&ports=3000;http;/&name=moon-chess\n\n【Docker 自托管（默认 3000 端口）】\ndocker build -t moon-chess . && docker run -p 3000:3000 moon-chess\n\n【Node 本地开发】\n在 moon-chess 仓库根目录执行：\n  npm install  &&  npm start\n  浏览器打开 http://localhost:3000/\n\n【部署成功后联机按钮会直接可用】\n- 创建房间 → 发邀请链接 /r/<房间号> 给好友\n- 加入房间 → 输入 6 位房间号 → 开始对战';
+    var btn = document.createElement('button');
+    btn.textContent = '知道了，我继续玩单机';
+    btn.style.cssText = 'width:100%;padding:11px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
+    btn.onclick = function(){ wrap.remove(); };
+    dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
+    wrap.appendChild(dialog);
+    document.body.appendChild(wrap);
+  }
+  window.__moon_chess_showOnlineTip = showOnlineTip;
+})();
   </script>
   <script>
-// AI 算法 —— 井字棋 + 消失规则（每方最多 3 颗，放新子后己方最早子消失；轮到己方回合时己方最早子闪烁警告）
+// AI 算法 —— 井字棋 + 消失规则（全局最多 5 颗，超过则消失全局最旧棋子；对方执棋时自己这边最早子闪烁警告）
 // 棋盘值: 0 空, 1 先手(玩家白/粉白), 2 后手(AI 默认紫蓝)
 // pieces: { 1: [{row,col},...], 2: [{row,col},...] } 每方棋子队列(FIFO,本方先后)
-// order:  保留（仅调试/历史，不再用全局 5 上限）
+// order:  [{player,row,col}, ...] 全局落子顺序（FIFO，超过 5 则 shift 最旧）
 
-const MAX_PER_SIDE = 3;
+const MAX_PER_SIDE = 3;       // 保留引用但 A 旧规则只使用全局 5 上限
+const MAX_GLOBAL = 5;
 
 function cloneBoard(board) {
   return board.map((r) => r.slice());
@@ -1071,7 +1092,7 @@ function checkWin(board) {
   return 0;
 }
 
-// 模拟一次落子（每方 ≤ 3 上限 FIFO），返回新的 { board, pieces, order, winner }
+// 模拟一次落子（全局 ≤ 5 上限 FIFO），超过则移走全局最旧
 function simulate(board, pieces, order, row, col, player) {
   const nb = cloneBoard(board);
   const np = clonePieces(pieces);
@@ -1079,13 +1100,11 @@ function simulate(board, pieces, order, row, col, player) {
   nb[row][col] = player;
   np[player].push({ row, col });
   no.push({ player, row, col });
-  // 己方满 3 → 己方最早子消失（新子 push 后才检查，等价于"下新子后消失"）
-  if (np[player].length > MAX_PER_SIDE) {
-    const old = np[player].shift();
+  // 全局满 5 → 全局最旧消失
+  if (no.length > MAX_GLOBAL) {
+    const old = no.shift();
+    np[old.player].shift();
     nb[old.row][old.col] = 0;
-    // 同时从 order 里删掉对应最早本方棋子的项，仅保持一致性
-    const idx = no.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
-    if (idx >= 0) no.splice(idx, 1);
   }
   return { board: nb, pieces: np, order: no, winner: checkWin(nb) };
 }
@@ -1278,12 +1297,12 @@ class LocalGame {
   reset() {
     this.board = Array.from({ length: 3 }, () => Array(3).fill(0));
     this.current = P1;
-    this.pieces = { 1: [], 2: [] };       // 每方棋子队列（按本方落子先后 FIFO，上限 3）
-    this.order  = [];                     // 全局落子顺序（保留/调试用）
+    this.pieces = { 1: [], 2: [] };       // 每方棋子队列（仅用本方 FIFO 顺序，不做上限）
+    this.order  = [];                     // 全局落子顺序（上限 MAX_GLOBAL=5）
     this.status = 'playing';
     this.winner = 0;
     this.winLine = null;
-    this.pendingRemove = null;            // 轮到己方回合 & 己方满 3 → 己方最早子 = 闪烁警告（放新子后真消失）
+    this.pendingRemove = null;            // 旧规则：全局将满（==4）时，下一手会把全局最旧子冲掉 → 警告闪烁全局最旧
   }
   place(row, col, player) {
     if (this.status !== 'playing') return { ok: false };
@@ -1299,17 +1318,15 @@ class LocalGame {
     let win = this._checkWin(this.board);
     let winner = win.winner, winLine = win.line;
 
-    // 己方队列 > 3 → 己方最早子"放新子后消失"。
-    // 注意：若新子刚放上去已经触发赢，仍按消失规则清理（避免 3→连3→新子→破坏连3 的罕见情况；但真连3不会被“消掉同色 3 子”，除非新子才是第4子且消掉最早己方）。
+    // 全局 FIFO > 5 → 全局最旧消失
     let removed = null;
-    if (this.pieces[player].length > MAX_PER_SIDE) {
-      const old = this.pieces[player].shift();
+    if (this.order.length > MAX_GLOBAL) {
+      const old = this.order.shift();
       removed = old;
-      // 同步从 order 移除对应最早本方棋子的首次匹配
-      const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
-      if (idx >= 0) this.order.splice(idx, 1);
+      // 从对应 pieces[player] 同步 shift 最旧
+      this.pieces[old.player].shift();
       this.board[old.row][old.col] = 0;
-      // 消失后可能己方连三被破坏（极少情况），重判胜负
+      // 消失后重判胜负
       if (winner !== 0) {
         const nw = this._checkWin(this.board);
         winner = nw.winner; winLine = nw.line;
@@ -1326,10 +1343,13 @@ class LocalGame {
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    // 闪烁警告：轮到对方回合 → 如果对方满 3，则对方最早子闪烁（也就是下一手执棋方自己 的最早子闪，符合你规则"轮到某一方下子时，己方最早的子不消失，只是闪烁"）
-    const oldest = this.pieces[this.current][0];
-    if (this.pieces[this.current].length >= MAX_PER_SIDE && oldest) {
-      this.pendingRemove = { player: this.current, row: oldest.row, col: oldest.col };
+    // 闪烁警告：旧规则 — 下一手落子后若 order.length 将 > MAX_GLOBAL，则会冲掉 order[0]（全局最旧）。
+    //   下一手落子前 order.length == 4 时，下一手落子 order.length → 5+1? wait MAX_GLOBAL=5 则 5 已满，第 6 手会 shift(0)。
+    //   我们当 order.length === 4（即下一手 +1 → 5，不超）order.length === 5（即下一手+1→6,会 shift order[0]）时闪烁警告 order[0] 那颗“要被冲掉的全局最旧”。
+    //   为了显示更贴合：满 5 就一直闪烁最早那颗（提醒玩家：任意一人再下棋，这颗全局最旧就消失）。
+    if (this.order.length >= MAX_GLOBAL && this.order[0]) {
+      const old = this.order[0];
+      this.pendingRemove = { player: old.player, row: old.row, col: old.col };
     } else {
       this.pendingRemove = null;
     }
