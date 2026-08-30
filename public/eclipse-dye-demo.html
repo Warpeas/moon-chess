@@ -161,13 +161,13 @@
   <!-- ============ Setup ============ -->
   <div id="setup">
     <h1>🌘 蚀染模式 Demo</h1>
-    <div class="sub">4×4 · 8 颗消失 · 夹击翻转 · 可移动 · 可调胜利/范围/回合</div>
+    <div class="sub">4×4 · 夹击翻转 · 可移动 · 可调胜利/范围/消失机制 · 不消失默认</div>
 
     <div class="card">
       <div class="grp-title">胜利条件</div>
       <div class="opts" id="winOpts">
-        <div class="opt active" data-v="majority"><div class="t">A · 占领多数</div><div class="d">回合上限结束时<br>子数多者胜</div></div>
-        <div class="opt" data-v="threshold"><div class="t">B · 阈值 9 颗</div><div class="d">任一方先达到 9 子<br>即胜（触发即结束）</div></div>
+        <div class="opt active" data-v="majority"><div class="t">A · 占领多数</div><div class="d">占满棋盘/双方无合法步时<br>子数多者胜 (翻转棋标准)</div></div>
+        <div class="opt" data-v="threshold"><div class="t">B · 阈值 9 颗</div><div class="d">任一方先达到 9 子<br>即胜；否则按多数</div></div>
         <div class="opt" data-v="square22"><div class="t">C · 2×2 方阵</div><div class="d">任一方先占据<br>任一 2×2 方块 4 格</div></div>
       </div>
     </div>
@@ -181,11 +181,10 @@
     </div>
 
     <div class="card">
-      <div class="grp-title">回合上限（仅 A 条件用到结束触发）</div>
-      <div class="opts" id="turnOpts">
-        <div class="opt" data-v="16"><div class="t">16 回合</div><div class="d">短局 (快节奏)</div></div>
-        <div class="opt active" data-v="24"><div class="t">24 回合</div><div class="d">标准 (推荐)</div></div>
-        <div class="opt" data-v="32"><div class="t">32 回合</div><div class="d">长局 (深度布局)</div></div>
+      <div class="grp-title">棋子消失机制（纯翻转棋 = 不消失）</div>
+      <div class="opts" id="vanishOpts">
+        <div class="opt active" data-v="no"><div class="t">不消失</div><div class="d">纯翻转棋 · 推荐</div></div>
+        <div class="opt" data-v="8"><div class="t">上限 8 颗</div><div class="d">月蚀 FIFO · 保留测试</div></div>
       </div>
     </div>
 
@@ -264,7 +263,6 @@
   'use strict';
   // ======================= Constants =======================
   const SIZE = 4;
-  const MAX_ORDER = 8;
   const P1 = 1, P2 = 2;
   const DIRS = [
     [-1,-1],[-1,0],[-1,1],
@@ -273,7 +271,7 @@
   ];
 
   // ======================= State =======================
-  let cfg = null;          // { win, moveK, maxTurns, diff, me }
+  let cfg = null;          // { win, moveK, vanish, maxOrder: 8|Infinity, diff, me }
   let game = null;         // game state
   let mode = 'place';      // 'place' | 'move'
   let movingSel = null;    // {r,c} if user picked own piece in move mode
@@ -292,25 +290,27 @@
       });
     });
   }
-  optPicker('winOpts'); optPicker('moveOpts'); optPicker('turnOpts'); optPicker('diffOpts'); optPicker('sideOpts');
+  optPicker('winOpts'); optPicker('moveOpts'); optPicker('vanishOpts'); optPicker('diffOpts'); optPicker('sideOpts');
 
   function activeVal(id) { return document.querySelector('#'+id+' .opt.active').dataset.v; }
 
-  function ruleChipText(w, m, maxTurns) {
+  function ruleChipText(w, m, vanish) {
     const wMap = { majority: 'A 占领多数', threshold: 'B 阈值9颗', square22: 'C 2×2方阵' };
-    return `规则: ${wMap[w]} · ${m}邻移动${w==='majority' ? ' · '+maxTurns+'回合上限' : ''}`;
+    const vMap = { no: '不消失', '8': '上限8颗消失' };
+    return `规则: ${wMap[w]} · ${m}邻移动 · ${vMap[vanish]}`;
   }
 
   document.getElementById('btnStart').addEventListener('click', () => {
     const win = activeVal('winOpts');
     const moveK = parseInt(activeVal('moveOpts'),10);
-    const maxTurns = parseInt(activeVal('turnOpts'),10);
+    const vanish = activeVal('vanishOpts');
+    const maxOrder = vanish === 'no' ? Infinity : 8;
     const diff = activeVal('diffOpts');
     const me = parseInt(activeVal('sideOpts'),10);
-    cfg = { win, moveK, maxTurns, diff, me };
-    document.getElementById('ruleChip').textContent = ruleChipText(win, moveK, maxTurns);
+    cfg = { win, moveK, vanish, maxOrder, diff, me };
+    document.getElementById('ruleChip').textContent = ruleChipText(win, moveK, vanish);
     const leg = document.getElementById('gameLegend');
-    leg.innerHTML = winLegendText(win, moveK, maxTurns);
+    leg.innerHTML = winLegendText(win, moveK, maxOrder);
     document.getElementById('setup').style.display = 'none';
     document.getElementById('game').style.display = 'block';
     startGame();
@@ -320,22 +320,29 @@
     location.href = location.pathname.endsWith('demo.html') ? './index.html' : './';
   });
 
-  function winLegendText(win, m, maxTurns) {
-    if (win === 'majority') return `<b>胜利：</b>回合上限 ${maxTurns} 或无合法步结束 → 子数多者胜。<b>移动：</b>${m} 邻。<b>消失：</b>全局 ${MAX_ORDER} 颗。`;
-    if (win === 'threshold') return `<b>胜利：</b>任一方先达到 9 颗己方棋子立即获胜。若满 99 回合仍没达到，则按多数结算。<b>移动：</b>${m} 邻。<b>消失：</b>全局 ${MAX_ORDER} 颗。`;
-    return `<b>胜利：</b>任一方先占据任一个 2×2 方块的 4 格立即获胜。若满 99 回合仍未形成则按多数。<b>移动：</b>${m} 邻。<b>消失：</b>全局 ${MAX_ORDER} 颗。`;
+  function winLegendText(win, m, maxOrder) {
+    const vanishLine = (maxOrder === Infinity) ? '棋子<b>不消失</b>（纯翻转棋）' : `全局上限 ${maxOrder} 颗 FIFO 消失`;
+    if (win === 'majority') return `<b>胜利：</b>棋盘占满 / 双方都无合法步时按<b>子数多者胜</b>（翻转棋标准）。<b>移动：</b>${m} 邻。`+vanishLine+`。<b>注意：</b>放置/移动必须至少翻对方 1 子才算合法，否则该回合自动跳过（PASS）。`;
+    if (win === 'threshold') return `<b>胜利：</b>任一方先达到 9 颗立即胜，否则棋盘占满/双方PASS两次按多数。<b>移动：</b>${m} 邻。`+vanishLine+`。`;
+    return `<b>胜利：</b>任一方先占据任一个 2×2 方块的 4 格立即获胜，否则同上兜底结算。<b>移动：</b>${m} 邻。`+vanishLine+`。`;
   }
 
   // ======================= Game Logic =======================
   function newGame() {
+    // 开局按翻转棋标准摆：(1,1)=P1, (1,2)=P2, (2,1)=P2, (2,2)=P1 中心四格对角交替
+    const board = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+    board[1][1]=P1; board[1][2]=P2; board[2][1]=P2; board[2][2]=P1;
     return {
-      board: Array.from({length:SIZE},()=>Array(SIZE).fill(0)),
-      order: [],                    // [{r,c, bornTurn}] — bornTurn 为放置时的回合步（0..N），移动不改
-      stepN: 0,                     // 总动作数（每方一步算 1），回合 = stepN（回合上限就是总动作上限，A 条件）
+      board,
+      order: [{r:1,c:1,bornStep:0},{r:1,c:2,bornStep:0},{r:2,c:1,bornStep:0},{r:2,c:2,bornStep:0}],
+      stepN: 0,
       current: P1,
       status: 'playing',
-      result: null,                 // { winner: 0|1|2, reason }
-      winCells: null,               // 高亮 2×2 / 阈值等情况下的关键格
+      result: null,
+      winCells: null,
+      passes: 0,           // 连续跳过（pass）计数，≥2 判定双方都无合法步
+      lastPass: false,
+      passLog: [],         // 可选：给玩家提示
     };
   }
 
@@ -366,82 +373,126 @@
     return flipped;
   }
 
-  // Apply place/move in-place (mutates state). Returns { ok, flipped:[[r,c]], removed:{r,c}|null, reason }
+  // Apply place in-place. Returns { ok, flipped, removed, reason }.
+  // 严格翻转棋合法：翻对方子数 ≥ 1，或者在开局没子的情况（空棋盘）允许首子（本demo中心已摆子，实际不会触发）。
   function doPlace(r,c,player) {
-    if (!inBounds(r,c) || game.board[r][c]!==0) return { ok:false, reason:'invalid' };
+    if (!inBounds(r,c) || game.board[r][c]!==0) return { ok:false, reason:'invalid-cell' };
+    const flipped = computeFlips(game.board, r, c, player);
+    if (flipped.length === 0) return { ok:false, reason:'must-flip' };
     game.board[r][c] = player;
     game.order.push({r,c, bornStep: game.stepN});
-    const flipped = computeFlips(game.board, r, c, player);
     for (const [fr,fc] of flipped) game.board[fr][fc] = player;
     let removed = null;
-    if (game.order.length > MAX_ORDER) {
+    const L = cfg.maxOrder;
+    if (isFinite(L) && game.order.length > L) {
       const old = game.order.shift();
-      if (game.board[old.r][old.c] !== 0) {  // 可能原本已在消失前就被移除/覆盖？一般不会
+      if (game.board[old.r][old.c] !== 0) {
         game.board[old.r][old.c] = 0;
         removed = old;
       }
     }
-    afterAction(player, flipped, removed);
+    afterAction(player, flipped, removed, false);
     return { ok:true, flipped, removed };
   }
 
   function doMove(fromR,fromC,toR,toC,player) {
-    if (!inBounds(fromR,toR,toC,fromC)) return { ok:false, reason:'oob' };
+    if (!inBounds(fromR,fromC) || !inBounds(toR,toC)) return { ok:false, reason:'oob' };
     if (game.board[fromR][fromC]!==player || game.board[toR][toC]!==0) return { ok:false, reason:'invalid' };
     if (!isLegalMoveStep(fromR,fromC,toR,toC,player)) return { ok:false, reason:'not-neighbor' };
-    // move
+    // Simulate flips after move (strict: must flip ≥1, same as place)
+    const savedF = game.board[fromR][fromC];
     game.board[fromR][fromC] = 0;
     game.board[toR][toC] = player;
-    // update order position: keep bornStep, only update r/c of that matching item
+    const flipped = computeFlips(game.board, toR, toC, player);
+    // revert until check passes
+    game.board[fromR][fromC] = savedF;
+    game.board[toR][toC] = 0;
+    if (flipped.length === 0) return { ok:false, reason:'must-flip' };
+
+    // commit move
+    game.board[fromR][fromC] = 0;
+    game.board[toR][toC] = player;
     const idx = game.order.findIndex(o => o.r===fromR && o.c===fromC);
     if (idx>=0) { game.order[idx].r=toR; game.order[idx].c=toC; }
-    const flipped = computeFlips(game.board, toR, toC, player);
     for (const [fr,fc] of flipped) game.board[fr][fc] = player;
     let removed = null;
-    if (game.order.length > MAX_ORDER) {
+    const L = cfg.maxOrder;
+    if (isFinite(L) && game.order.length > L) {
       const old = game.order.shift();
       if (game.board[old.r][old.c] !== 0) { game.board[old.r][old.c] = 0; removed = old; }
     }
-    afterAction(player, flipped, removed);
+    afterAction(player, flipped, removed, false);
     return { ok:true, flipped, removed };
   }
 
-  function isLegalMoveStep(fr,fc,tr,tc, player) {
-    const d = Math.max(Math.abs(fr-tr), Math.abs(fc-tc));
-    if (d !== 1) return false;
-    if (cfg.moveK === 4 && fr!==tr && fc!==tc) return false;
-    return true;
+  function passTurn(player, reason) {
+    // Current side has no legal actions, skips turn. If consecutive passes ≥ 2, the game ends with majority.
+    game.passLog.push({ player, reason, step: game.stepN });
+    game.stepN += 1;
+    game.lastPass = true;
+    game.passes += 1;
+    game.current = player===P1?P2:P1;
+    if (game.passes >= 2) {
+      game.status = 'over';
+      game.result = majorityResult('双方连续跳过（都无合法步）');
+      return;
+    }
+    // Check B / C immediate wins still? No. Pass never triggers win — only ends on 2x pass or full board.
+    checkFullBoardEnd();
   }
 
-  function afterAction(player, flipped, removed) {
+  function afterAction(player, flipped, removed, wasPass) {
     game.stepN += 1;
+    game.lastPass = false;
+    game.passes = 0;
     const next = player===P1?P2:P1;
     game.current = next;
-    // check win right now
     const winInfo = checkWin();
     if (winInfo) {
       game.status = 'over';
       game.result = winInfo;
       return;
     }
-    // check no legal actions for current player
-    const acts = listAllActions(game.current);
-    if (acts.length === 0) {
-      // pass: if both sides have no actions → end
-      // For simplicity: first stuck side passes, try other; if also stuck → end
-      // We'll just end immediately if side has no moves and side places no flips/no moves: just end
-      game.status = 'over';
-      game.result = majorityResult('双方无合法动作');
+    checkFullBoardEnd();
+    // If current side has no legal actions: auto-pass
+    if (game.status === 'playing') {
+      const acts = listAllActions(game.current);
+      if (acts.length === 0) {
+        const skipSide = game.current;
+        game.passes += 1;
+        game.stepN += 1;
+        game.lastPass = true;
+        game.passLog.push({ player: skipSide, reason:'no-legal-actions', step: game.stepN });
+        game.current = skipSide===P1?P2:P1;
+        if (game.passes >= 2) { game.status = 'over'; game.result = majorityResult('双方连续跳过（都无合法步）'); return; }
+        checkFullBoardEnd();
+        // Now check the new side has legal actions; if also none, second pass above triggers via same code path — but we've incremented passes=1, so we need to loop
+        // Easier: run a fixed tiny loop (max 2 passes) here
+        let guard = 0;
+        while (guard++ < 4 && game.status==='playing') {
+          const acts2 = listAllActions(game.current);
+          if (acts2.length > 0) break;
+          const s2 = game.current;
+          game.passes += 1;
+          game.stepN += 1;
+          game.lastPass = true;
+          game.passLog.push({ player: s2, reason:'no-legal-actions(loop)', step: game.stepN });
+          game.current = s2===P1?P2:P1;
+          if (game.passes >= 2) { game.status='over'; game.result=majorityResult('双方连续跳过（都无合法步）'); return; }
+          checkFullBoardEnd();
+        }
+      }
     }
   }
 
-  function countPieces() {
-    let a=0,b=0;
-    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
-      if (game.board[r][c]===P1) a++;
-      else if (game.board[r][c]===P2) b++;
+  function checkFullBoardEnd() {
+    // 棋盘已满（没有空格）即按多数结束
+    let empty = 0;
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) empty++;
+    if (empty === 0) {
+      game.status = 'over';
+      game.result = majorityResult('棋盘占满');
     }
-    return {p1:a,p2:b};
   }
 
   function majorityResult(reason) {
@@ -454,14 +505,11 @@
 
   function checkWin() {
     const {p1,p2} = countPieces();
-    // B: threshold 9
     if (cfg.win === 'threshold') {
       if (p1 >= 9) return { winner: P1, reason:'B·粉白达到 9 颗' };
       if (p2 >= 9) return { winner: P2, reason:'B·紫蓝达到 9 颗' };
-      if (game.stepN >= 99) return majorityResult('达到 99 回合');
       return null;
     }
-    // C: 2x2 square
     if (cfg.win === 'square22') {
       for (let r=0;r<SIZE-1;r++) for (let c=0;c<SIZE-1;c++) {
         const v = game.board[r][c];
@@ -471,33 +519,33 @@
           return { winner: v, reason: (v===P1?'粉白':'紫蓝') + ' 形成 2×2 方阵' };
         }
       }
-      if (game.stepN >= 99) return majorityResult('达到 99 回合');
       return null;
     }
-    // A: majority by maxTurns OR no legal moves
-    if (game.stepN >= cfg.maxTurns) {
-      return majorityResult(`达到 ${cfg.maxTurns} 回合上限`);
-    }
+    // majority: no immediate win — only ends via pass×2 or full board
     return null;
   }
 
   // ======================= Actions Enumeration (for AI & legal check) =======================
+  // 严格翻转棋合法：place/move 必须至少翻对方 1 子（否则本回合自动 PASS）
   function listAllActions(player) {
     const acts = [];
     // place
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) {
       const flipped = computeFlips(game.board, r, c, player);
+      if (flipped.length === 0) continue;
       acts.push({ kind:'place', r, c, flipCount: flipped.length, flips: flipped });
     }
     // move
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===player) {
       for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
+        // simulate move then computeFlips at dest
         const saved = game.board[r][c];
         game.board[r][c] = 0;
         game.board[nr][nc] = player;
         const flipped = computeFlips(game.board, nr, nc, player);
         game.board[r][c] = saved;
         game.board[nr][nc] = 0;
+        if (flipped.length === 0) continue;
         acts.push({ kind:'move', fromR:r, fromC:c, r:nr, c:nc, flipCount: flipped.length, flips: flipped });
       }
     }
@@ -540,18 +588,54 @@
     turnLabel.classList.add(game.current===P1 ? 'g1' : 'g2');
     document.getElementById('turnText').textContent = curText;
 
-    const total = cfg.win === 'majority' ? cfg.maxTurns : (cfg.win==='threshold'||cfg.win==='square22' ? 99 : cfg.maxTurns);
-    document.getElementById('turnChip').textContent = `回合 ${game.stepN} / ${total}`;
+    const totalText = isFinite(cfg.maxOrder) ? `上限${cfg.maxOrder}颗` : '棋子不消失';
+    document.getElementById('turnChip').textContent = `回合 ${game.stepN} · ${totalText}${game.lastPass?' · 上回合PASS':''}`;
 
-    // pending-remove cell: oldest of order
-    const removeMark = game.order.length === MAX_ORDER ? game.order[0] : null;
+    // pending-remove cell: oldest of order when vanish enabled
+    const L = cfg.maxOrder;
+    const removeMark = (isFinite(L) && game.order.length === L) ? game.order[0] : null;
+
+    // Valid action maps (for hints, not highlights)
+    let validPlaceSet = null, validMoveDestBySel = null, myPiecesMovable = new Set();
+    if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
+      validPlaceSet = new Set();
+      for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) {
+        const fl = computeFlips(game.board, r, c, cfg.me);
+        if (fl.length>0) validPlaceSet.add(r+','+c);
+      }
+      myPiecesMovable = new Set();
+      for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===cfg.me) {
+        // any neighbor empty where moving yields ≥1 flip?
+        let movable=false;
+        for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
+          const saved = game.board[r][c];
+          game.board[r][c]=0; game.board[nr][nc]=cfg.me;
+          const fl = computeFlips(game.board, nr, nc, cfg.me);
+          game.board[r][c]=saved; game.board[nr][nc]=0;
+          if (fl.length>0) { movable=true; break; }
+        }
+        if (movable) myPiecesMovable.add(r+','+c);
+      }
+      validMoveDestBySel = {}; // key fromR+','+fromC -> Set of dests
+      if (movingSel) {
+        const s = movingSel.r+','+movingSel.c;
+        validMoveDestBySel[s] = new Set();
+        for (const [nr,nc] of moveNeighbors(movingSel.r, movingSel.c, cfg.moveK)) {
+          if (game.board[nr][nc]!==0) continue;
+          const saved = game.board[movingSel.r][movingSel.c];
+          game.board[movingSel.r][movingSel.c]=0; game.board[nr][nc]=cfg.me;
+          const fl = computeFlips(game.board, nr, nc, cfg.me);
+          game.board[movingSel.r][movingSel.c]=saved; game.board[nr][nc]=0;
+          if (fl.length>0) validMoveDestBySel[s].add(nr+','+nc);
+        }
+      }
+    }
 
     // per-cell
     const winSet = new Set((game.winCells||[]).map(([r,c])=>r+','+c));
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
       const el = cellAt(r,c);
       const v = game.board[r][c];
-      // piece innerHTML — keep same piece element when not changing to avoid animation restart
       const key = v === 0 ? '0' : ('p'+v);
       if (el.dataset._k !== key) {
         el.innerHTML = '';
@@ -562,28 +646,25 @@
         }
         el.dataset._k = key;
       }
-      // classes — clean, re-add
       el.classList.remove('place-hint','move-hint','selected','removing','ending','flipping','disabled');
 
       if (removeMark && removeMark.r===r && removeMark.c===c) el.classList.add('removing');
       if (winSet.has(r+','+c)) el.classList.add('ending');
-      if (extra.flipSet && extra.flipSet.has(r+','+c)) {
-        el.classList.add('flipping');
-      }
+      if (extra.flipSet && extra.flipSet.has(r+','+c)) el.classList.add('flipping');
 
-      // Hints for user's turn
       if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
         if (mode === 'place') {
-          if (v === 0) el.classList.add('place-hint');
+          if (validPlaceSet && validPlaceSet.has(r+','+c)) el.classList.add('place-hint');
         } else { // move
-          // User's piece is selectable (highlight as moving origin? We'll use 'selected' when actually picked.)
           if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
-          // Show move destination hints when piece is selected
-          if (movingSel) {
-            if (isDestOf(movingSel.r, movingSel.c, r, c)) el.classList.add('move-hint');
+          const dests = validMoveDestBySel ? validMoveDestBySel[movingSel && (movingSel.r+','+movingSel.c)] : null;
+          if (dests && dests.has(r+','+c)) el.classList.add('move-hint');
+          // 如果当前cell是可移动的己方棋子(有可到达的合法目标)，给个淡提示避免用户点错
+          if (myPiecesMovable && myPiecesMovable.has(r+','+c) && !movingSel) {
+            // leave as piece; just ensure not dim
           }
-          // Dim non-actionable: own piece with no neighbor empty can't be moved; but it's OK
         }
+        // 如果合法动作集合是空的(说明本回合会自动pass) 也不高亮 等上层banner提示
       } else {
         el.classList.add('disabled');
       }
@@ -613,18 +694,20 @@
       hint.textContent = '对局结束';
     } else if (aiThinking) {
       hint.textContent = 'AI 思考中…';
-    } else if (mode === 'place') {
-      hint.textContent = '放置模式：点空格落子，之后触发 8 方向夹击翻转';
-    } else if (!movingSel) {
-      hint.textContent = '移动模式：先点你的一颗棋子，再点绿色虚线框目标格';
+    } else if (game.current !== cfg.me) {
+      hint.textContent = '等待对方…';
     } else {
-      hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})，点绿色目标格确认移动，或再次点已选棋取消`;
+      const hasAny = (listAllActions(cfg.me).length > 0);
+      if (!hasAny) {
+        hint.textContent = '⚠️ 本回合你没有合法步（放置/移动均无法翻转对方棋子），将自动跳过';
+      } else if (mode === 'place') {
+        hint.textContent = '放置模式：点带虚线框的空格落子 → 8方向夹击翻转对方';
+      } else if (!movingSel) {
+        hint.textContent = '移动模式：点你的一颗棋子（必须有合法翻转的相邻空位）';
+      } else {
+        hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})：点绿色目标格执行移动翻转；再次点已选棋取消选择`;
+      }
     }
-  }
-
-  function isDestOf(fr,fc,tr,tc) {
-    if (game.board[tr][tc]!==0) return false;
-    return isLegalMoveStep(fr,fc,tr,tc, cfg.me);
   }
 
   // ======================= User interactions =======================
@@ -639,35 +722,56 @@
       performUserAction(()=>doPlace(r,c,cfg.me));
     } else { // move
       if (!movingSel) {
-        if (game.board[r][c] !== cfg.me) return; // must pick own piece
-        // must have at least one legal destination
-        if (moveNeighbors(r,c,cfg.moveK).length===0) { flashHint('这颗棋周围没空位可移动'); return; }
+        if (game.board[r][c] !== cfg.me) return;
+        if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋没有合法的移动翻转点（相邻格落位后必须能翻对方棋子）'); return; }
         movingSel = {r,c}; render(); return;
       }
-      // picked; clicking same cell = cancel
       if (movingSel.r===r && movingSel.c===c) { movingSel=null; render(); return; }
-      // clicking another own piece = switch selection
       if (game.board[r][c] === cfg.me) {
-        if (moveNeighbors(r,c,cfg.moveK).length===0) { flashHint('这颗棋周围没空位可移动'); return; }
+        if (!pieceHasMoves(r,c,cfg.me)) { flashHint('这颗棋无合法移动翻转点'); return; }
         movingSel = {r,c}; render(); return;
       }
-      if (!isDestOf(movingSel.r, movingSel.c, r, c)) { flashHint('目标格无效'); return; }
+      if (!isDestOf(movingSel.r, movingSel.c, r, c)) { flashHint('目标格无效（必须是合法移动且能翻转对方至少1子）'); return; }
       const fr = movingSel.r, fc = movingSel.c;
       movingSel = null;
       performUserAction(()=>doMove(fr,fc,r,c,cfg.me));
     }
   }
 
+  function pieceHasMoves(r,c,player) {
+    for (const [nr,nc] of moveNeighbors(r,c,cfg.moveK)) {
+      const saved = game.board[r][c];
+      game.board[r][c] = 0; game.board[nr][nc] = player;
+      const fl = computeFlips(game.board, nr, nc, player);
+      game.board[r][c] = saved; game.board[nr][nc] = 0;
+      if (fl.length>0) return true;
+    }
+    return false;
+  }
+
+  function isDestOf(fr,fc,tr,tc) {
+    if (game.board[tr][tc]!==0) return false;
+    if (!isLegalMoveStep(fr,fc,tr,tc, cfg.me)) return false;
+    const saved = game.board[fr][fc];
+    game.board[fr][fc] = 0; game.board[tr][tc] = cfg.me;
+    const fl = computeFlips(game.board, tr, tc, cfg.me);
+    game.board[fr][fc] = saved; game.board[tr][tc] = 0;
+    return fl.length > 0;
+  }
+
   function flashHint(t){ document.getElementById('hint').textContent = t; }
 
   function performUserAction(fn) {
-    const before = performance.now();
     const res = fn();
-    if (!res || !res.ok) { flashHint('无法执行这一步'); return; }
+    if (!res || !res.ok) {
+      if (res && res.reason === 'must-flip') flashHint('这一步不会翻转对方棋子，不合法（翻转棋规则）');
+      else flashHint('无法执行这一步');
+      return;
+    }
     const flipSet = new Set(res.flipped.map(([r,c])=>r+','+c));
     render({ flipSet });
     if (game.status === 'over') return;
-    // schedule AI if it's AI turn
+    // After auto-pass chain, AI may still be the current side (if user's pass ended with AI side)
     if (game.current !== cfg.me) scheduleAI();
   }
 
@@ -684,7 +788,20 @@
     if (game.status !== 'playing') return;
     const player = cfg.me === P1 ? P2 : P1;
     const acts = listAllActions(player);
-    if (acts.length === 0) { aiThinking = false; game.status='over'; game.result = majorityResult('AI 无合法步'); render(); return; }
+    if (acts.length === 0) {
+      aiThinking = false;
+      // AI has no actions: auto-pass using game's standard pass logic (not direct end)
+      game.passes += 1;
+      game.stepN += 1;
+      game.lastPass = true;
+      game.passLog.push({ player, reason:'AI-no-legal-actions', step: game.stepN });
+      game.current = player===P1?P2:P1;
+      if (game.passes >= 2) { game.status = 'over'; game.result = majorityResult('双方连续跳过（都无合法步）'); }
+      checkFullBoardEnd();
+      render();
+      // If it's now user's turn, just let them play. If again no actions for AI side? End will fire when passes=2
+      return;
+    }
 
     let chosen;
     if (cfg.diff === 'easy') {
