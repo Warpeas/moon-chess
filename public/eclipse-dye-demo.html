@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<title>蚀染模式 Demo · Eclipse Dye Playground</title>
+<style>
+  :root {
+    --bg: #0e0c18;
+    --panel: #18162a;
+    --panel-2: #23203f;
+    --line: #3b3566;
+    --text: #f1ecff;
+    --sub: #b6addd;
+    --p1: #ffd9ee;       /* 粉白 */
+    --p1-glow: #ff78c8;
+    --p2: #6e65ff;       /* 紫蓝 */
+    --p2-glow: #8cc6ff;
+    --accent: #ff5577;
+    --ok: #51e898;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { margin:0; padding:0; background: radial-gradient(1200px 800px at 50% -20%, #2a2450 0%, var(--bg) 70%); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif; min-height: 100vh; }
+
+  /* ---------- Setup ---------- */
+  .wrap { max-width: 520px; margin: 0 auto; padding: 18px 16px 40px; }
+  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: 1px; }
+  .sub { color: var(--sub); font-size: 13px; margin-bottom: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+  .grp-title { font-size: 13px; color: var(--sub); margin: 2px 0 8px; letter-spacing: .5px; }
+  .opts { display: grid; grid-template-columns: repeat(auto-fit,minmax(100px,1fr)); gap: 8px; }
+  .opt {
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text);
+    border-radius: 10px; padding: 10px 8px; font-size: 13px; cursor: pointer;
+    transition: all .15s ease;
+  }
+  .opt:hover { transform: translateY(-1px); }
+  .opt.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(255,85,119,.2); background: linear-gradient(180deg, rgba(255,85,119,.14), var(--panel-2)); }
+  .opt .t { font-weight: 600; }
+  .opt .d { color: var(--sub); font-size: 11px; margin-top: 3px; line-height: 1.4; }
+  .btn {
+    border: 0; border-radius: 10px; padding: 12px 16px; font-weight: 600; color: #fff;
+    background: linear-gradient(180deg, #ff7a97, #e53f66); cursor: pointer;
+    box-shadow: 0 6px 16px rgba(229,63,102,.25); width: 100%; font-size: 15px;
+  }
+  .btn.ghost { background: transparent; color: var(--sub); box-shadow: none; border: 1px solid var(--line); }
+  .row { display: flex; gap: 8px; }
+
+  /* ---------- Game ---------- */
+  .game-wrap { display: none; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 6px; }
+  .turn { font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
+  .turn .gem { width: 18px; height: 18px; border-radius: 50%; }
+  .turn.g1 .gem { background: radial-gradient(circle at 30% 30%, #fff 0%, var(--p1) 55%, var(--p1-glow) 100%); box-shadow: 0 0 8px rgba(255,120,200,.6); }
+  .turn.g2 .gem { background: radial-gradient(circle at 30% 30%, #d6f1ff 0%, var(--p2) 55%, var(--p2-glow) 100%); box-shadow: 0 0 8px rgba(110,101,255,.6); }
+  .info { display: flex; gap: 8px; color: var(--sub); font-size: 12px; flex-wrap: wrap; }
+  .chip { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; }
+  .actions { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .tab {
+    flex: 1; min-width: 90px; border-radius: 10px; padding: 8px 10px; font-size: 13px; text-align: center; color: var(--sub);
+    background: var(--panel); border: 1px solid var(--line); cursor: pointer;
+  }
+  .tab.active { color: #fff; border-color: var(--accent); background: linear-gradient(180deg, rgba(255,85,119,.16), var(--panel)); }
+  .hint { font-size: 12px; color: var(--sub); margin-bottom: 8px; min-height: 16px; }
+  .counts { display: flex; gap: 10px; }
+  .count { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+  .count .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .count.p1 .dot { background: var(--p1); box-shadow: 0 0 6px var(--p1-glow); }
+  .count.p2 .dot { background: var(--p2); box-shadow: 0 0 6px var(--p2-glow); }
+
+  .board {
+    width: 100%; max-width: 440px; margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    background: linear-gradient(135deg, #1e1a36 0%, #251f43 100%);
+    border: 1px solid var(--line);
+    border-radius: 16px; padding: 8px;
+    display: grid; gap: 6px;
+    box-shadow: inset 0 0 30px rgba(0,0,0,.4), 0 14px 30px rgba(0,0,0,.4);
+  }
+  .cell {
+    position: relative; border-radius: 10px;
+    background: linear-gradient(180deg, #2a2452, #1f1b3e);
+    border: 1px solid rgba(125,110,200,.28);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .15s ease;
+    user-select: none;
+  }
+  .cell.place-hint::after {
+    content: ''; position: absolute; inset: 25%; border-radius: 50%;
+    border: 2px dashed rgba(255,255,255,.14);
+  }
+  .cell.move-hint::after {
+    content: ''; position: absolute; inset: 18%; border-radius: 10px;
+    border: 2px dashed rgba(122,220,170,.55);
+    background: rgba(81,232,152,.07);
+  }
+  .cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.25); }
+  .cell.flipping { animation: flipAnim 500ms ease; }
+  @keyframes flipAnim {
+    0% { transform: scale(1); }
+    30% { transform: scale(0.4); opacity: .5; }
+    60% { transform: scale(0.4); opacity: .5; }
+    100% { transform: scale(1); }
+  }
+  .cell.removing::after {
+    content: ''; position: absolute; inset: 8%; border-radius: 10px;
+    border: 2px solid rgba(255,80,80,.55);
+    box-shadow: inset 0 0 12px rgba(255,80,80,.25), 0 0 12px rgba(255,80,80,.25);
+    animation: removePulse 1.6s ease-in-out infinite;
+  }
+  @keyframes removePulse {
+    0%,100% { opacity: .5; } 50% { opacity: 1; }
+  }
+  .cell.disabled { cursor: not-allowed; }
+  .cell.ending::after {
+    content: ''; position: absolute; inset: 12%; border-radius: 8px;
+    background: linear-gradient(180deg, rgba(81,232,152,.2), rgba(81,232,152,0));
+    border: 2px solid rgba(81,232,152,.6);
+    animation: winPulse .9s ease-in-out infinite;
+  }
+  @keyframes winPulse {
+    0%,100% { transform: scale(1); } 50% { transform: scale(1.05); }
+  }
+  .piece {
+    width: 70%; height: 70%; border-radius: 50%;
+    position: relative; z-index: 1;
+    animation: dropIn 300ms cubic-bezier(.3,1.6,.6,1);
+  }
+  @keyframes dropIn {
+    from { transform: translateY(-6px) scale(.6); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  .piece.p1 { background: radial-gradient(circle at 30% 30%, #ffffff 0%, var(--p1) 60%, var(--p1-glow) 100%); box-shadow: 0 6px 14px rgba(0,0,0,.45), 0 0 12px rgba(255,120,200,.45); }
+  .piece.p2 { background: radial-gradient(circle at 30% 30%, #e5f2ff 0%, var(--p2) 60%, var(--p2-glow) 100%); box-shadow: 0 6px 14px rgba(0,0,0,.5), 0 0 12px rgba(140,198,255,.45); }
+
+  .banner {
+    margin-top: 10px; padding: 10px 12px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--panel);
+    display: none; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+  .banner.show { display: flex; }
+  .banner .msg { font-weight: 600; }
+  .banner .btns { display: flex; gap: 6px; }
+  .banner button {
+    border: 0; padding: 8px 12px; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 13px;
+    background: linear-gradient(180deg, #7a6bff, #4e40d0);
+  }
+  .banner button.minor { background: var(--panel-2); color: var(--sub); border: 1px solid var(--line); }
+
+  .legend { font-size: 12px; color: var(--sub); line-height: 1.7; }
+  .legend b { color: var(--text); }
+
+  @media (max-width: 380px) {
+    .opts { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ Setup ============ -->
+  <div id="setup">
+    <h1>🌘 蚀染模式 Demo</h1>
+    <div class="sub">4×4 · 8 颗消失 · 夹击翻转 · 可移动 · 可调胜利/范围/回合</div>
+
+    <div class="card">
+      <div class="grp-title">胜利条件</div>
+      <div class="opts" id="winOpts">
+        <div class="opt active" data-v="majority"><div class="t">A · 占领多数</div><div class="d">回合上限结束时<br>子数多者胜</div></div>
+        <div class="opt" data-v="threshold"><div class="t">B · 阈值 9 颗</div><div class="d">任一方先达到 9 子<br>即胜（触发即结束）</div></div>
+        <div class="opt" data-v="square22"><div class="t">C · 2×2 方阵</div><div class="d">任一方先占据<br>任一 2×2 方块 4 格</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grp-title">移动范围</div>
+      <div class="opts" id="moveOpts">
+        <div class="opt active" data-v="4"><div class="t">4 邻</div><div class="d">上下左右</div></div>
+        <div class="opt" data-v="8"><div class="t">8 邻</div><div class="d">加对角</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grp-title">回合上限（仅 A 条件用到结束触发）</div>
+      <div class="opts" id="turnOpts">
+        <div class="opt" data-v="16"><div class="t">16 回合</div><div class="d">短局 (快节奏)</div></div>
+        <div class="opt active" data-v="24"><div class="t">24 回合</div><div class="d">标准 (推荐)</div></div>
+        <div class="opt" data-v="32"><div class="t">32 回合</div><div class="d">长局 (深度布局)</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grp-title">难度</div>
+      <div class="opts" id="diffOpts">
+        <div class="opt active" data-v="easy"><div class="t">简单</div><div class="d">AI 放水，能赢</div></div>
+        <div class="opt" data-v="std"><div class="t">标准</div><div class="d">优先翻子+占地</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grp-title">执棋方（P1=粉白 先手）</div>
+      <div class="opts" id="sideOpts">
+        <div class="opt active" data-v="1"><div class="t">执粉白（先手）</div><div class="d">P1</div></div>
+        <div class="opt" data-v="2"><div class="t">执紫蓝（后手）</div><div class="d">P2</div></div>
+      </div>
+    </div>
+
+    <button class="btn" id="btnStart">▶ 开始对局</button>
+    <div style="height:8px"></div>
+    <button class="btn ghost" id="btnBack">← 返回正式版</button>
+
+    <div style="height:20px"></div>
+    <div class="legend card">
+      <b>规则速查：</b><br>
+      · 每回合 <b>放子</b> 或 <b>移动</b> 二选一（顶栏切换）<br>
+      · 放子/移动落位后检查 8 方向夹击：己方 → 对方连续 → 己方，则中间子全翻为己方<br>
+      · 全局最多 <b>8 颗</b>，超过移除最旧那颗（按落下时间，不随移动/染色改变）<br>
+      · 移动不改变落子时间，每方一步行动后回合数 +1<br>
+      · 边框闪红 = 下一手将消失的最旧子
+    </div>
+  </div>
+
+  <!-- ============ Game ============ -->
+  <div id="game" class="game-wrap">
+    <div class="topbar">
+      <div class="turn g1" id="turnLabel"><span class="gem"></span><span id="turnText">P1 粉白</span></div>
+      <div class="info">
+        <div class="chip" id="ruleChip">规则: A 占领多数</div>
+        <div class="chip" id="turnChip">回合 0 / 24</div>
+      </div>
+    </div>
+
+    <div class="counts" style="margin-bottom:10px">
+      <div class="count p1"><span class="dot"></span><span id="p1Count">0</span> 粉白</div>
+      <div class="count p2"><span class="dot"></span><span id="p2Count">0</span> 紫蓝</div>
+    </div>
+
+    <div class="actions">
+      <div class="tab active" id="tabPlace">🎯 放置</div>
+      <div class="tab" id="tabMove">↔️ 移动</div>
+      <div style="flex:1"></div>
+      <div class="tab" id="btnRematch">🔄 重开</div>
+      <div class="tab" id="btnExit">↩️ 改设定</div>
+    </div>
+
+    <div class="hint" id="hint">点空格放置己方棋子</div>
+    <div class="board" id="board"></div>
+
+    <div class="banner" id="endBanner">
+      <div class="msg" id="endMsg">结束</div>
+      <div class="btns">
+        <button class="minor" id="btnBannerExit">改设定</button>
+        <button id="btnBannerRestart">再来一局</button>
+      </div>
+    </div>
+
+    <div style="height:14px"></div>
+    <div class="legend card" id="gameLegend"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  // ======================= Constants =======================
+  const SIZE = 4;
+  const MAX_ORDER = 8;
+  const P1 = 1, P2 = 2;
+  const DIRS = [
+    [-1,-1],[-1,0],[-1,1],
+    [ 0,-1],       [ 0,1],
+    [ 1,-1],[ 1,0],[ 1,1],
+  ];
+
+  // ======================= State =======================
+  let cfg = null;          // { win, moveK, maxTurns, diff, me }
+  let game = null;         // game state
+  let mode = 'place';      // 'place' | 'move'
+  let movingSel = null;    // {r,c} if user picked own piece in move mode
+  let aiThinking = false;
+  let aiTimer = null;
+
+  // ======================= Setup UI =======================
+  function optPicker(id, cb) {
+    const root = document.getElementById(id);
+    const opts = root.querySelectorAll('.opt');
+    opts.forEach(o => {
+      o.addEventListener('click', () => {
+        opts.forEach(x => x.classList.remove('active'));
+        o.classList.add('active');
+        cb && cb(o.dataset.v);
+      });
+    });
+  }
+  optPicker('winOpts'); optPicker('moveOpts'); optPicker('turnOpts'); optPicker('diffOpts'); optPicker('sideOpts');
+
+  function activeVal(id) { return document.querySelector('#'+id+' .opt.active').dataset.v; }
+
+  function ruleChipText(w, m, maxTurns) {
+    const wMap = { majority: 'A 占领多数', threshold: 'B 阈值9颗', square22: 'C 2×2方阵' };
+    return `规则: ${wMap[w]} · ${m}邻移动${w==='majority' ? ' · '+maxTurns+'回合上限' : ''}`;
+  }
+
+  document.getElementById('btnStart').addEventListener('click', () => {
+    const win = activeVal('winOpts');
+    const moveK = parseInt(activeVal('moveOpts'),10);
+    const maxTurns = parseInt(activeVal('turnOpts'),10);
+    const diff = activeVal('diffOpts');
+    const me = parseInt(activeVal('sideOpts'),10);
+    cfg = { win, moveK, maxTurns, diff, me };
+    document.getElementById('ruleChip').textContent = ruleChipText(win, moveK, maxTurns);
+    const leg = document.getElementById('gameLegend');
+    leg.innerHTML = winLegendText(win, moveK, maxTurns);
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('game').style.display = 'block';
+    startGame();
+  });
+
+  document.getElementById('btnBack').addEventListener('click', () => {
+    location.href = location.pathname.endsWith('demo.html') ? './index.html' : './';
+  });
+
+  function winLegendText(win, m, maxTurns) {
+    if (win === 'majority') return `<b>胜利：</b>回合上限 ${maxTurns} 或无合法步结束 → 子数多者胜。<b>移动：</b>${m} 邻。<b>消失：</b>全局 ${MAX_ORDER} 颗。`;
+    if (win === 'threshold') return `<b>胜利：</b>任一方先达到 9 颗己方棋子立即获胜。若满 99 回合仍没达到，则按多数结算。<b>移动：</b>${m} 邻。<b>消失：</b>全局 ${MAX_ORDER} 颗。`;
+    return `<b>胜利：</b>任一方先占据任一个 2×2 方块的 4 格立即获胜。若满 99 回合仍未形成则按多数。<b>移动：</b>${m} 邻。<b>消失：</b>全局 ${MAX_ORDER} 颗。`;
+  }
+
+  // ======================= Game Logic =======================
+  function newGame() {
+    return {
+      board: Array.from({length:SIZE},()=>Array(SIZE).fill(0)),
+      order: [],                    // [{r,c, bornTurn}] — bornTurn 为放置时的回合步（0..N），移动不改
+      stepN: 0,                     // 总动作数（每方一步算 1），回合 = stepN（回合上限就是总动作上限，A 条件）
+      current: P1,
+      status: 'playing',
+      result: null,                 // { winner: 0|1|2, reason }
+      winCells: null,               // 高亮 2×2 / 阈值等情况下的关键格
+    };
+  }
+
+  function inBounds(r,c){ return r>=0&&r<SIZE&&c>=0&&c<SIZE; }
+  function moveNeighbors(r,c,K) {
+    const out = [];
+    for (let dr=-1; dr<=1; dr++) for (let dc=-1; dc<=1; dc++) {
+      if (dr===0 && dc===0) continue;
+      if (K===4 && dr!==0 && dc!==0) continue;
+      const nr=r+dr, nc=c+dc;
+      if (inBounds(nr,nc) && game.board[nr][nc]===0) out.push([nr,nc]);
+    }
+    return out;
+  }
+
+  // Returns list of [r,c] that would be flipped if placing/moving `player` to (r,c)
+  function computeFlips(board, r, c, player) {
+    const enemy = player===P1?P2:P1;
+    const flipped = [];
+    for (const [dr,dc] of DIRS) {
+      const line = [];
+      let rr=r+dr, cc=c+dc;
+      while (inBounds(rr,cc) && board[rr][cc]===enemy) { line.push([rr,cc]); rr+=dr; cc+=dc; }
+      if (line.length>0 && inBounds(rr,cc) && board[rr][cc]===player) {
+        for (const p of line) flipped.push(p);
+      }
+    }
+    return flipped;
+  }
+
+  // Apply place/move in-place (mutates state). Returns { ok, flipped:[[r,c]], removed:{r,c}|null, reason }
+  function doPlace(r,c,player) {
+    if (!inBounds(r,c) || game.board[r][c]!==0) return { ok:false, reason:'invalid' };
+    game.board[r][c] = player;
+    game.order.push({r,c, bornStep: game.stepN});
+    const flipped = computeFlips(game.board, r, c, player);
+    for (const [fr,fc] of flipped) game.board[fr][fc] = player;
+    let removed = null;
+    if (game.order.length > MAX_ORDER) {
+      const old = game.order.shift();
+      if (game.board[old.r][old.c] !== 0) {  // 可能原本已在消失前就被移除/覆盖？一般不会
+        game.board[old.r][old.c] = 0;
+        removed = old;
+      }
+    }
+    afterAction(player, flipped, removed);
+    return { ok:true, flipped, removed };
+  }
+
+  function doMove(fromR,fromC,toR,toC,player) {
+    if (!inBounds(fromR,toR,toC,fromC)) return { ok:false, reason:'oob' };
+    if (game.board[fromR][fromC]!==player || game.board[toR][toC]!==0) return { ok:false, reason:'invalid' };
+    if (!isLegalMoveStep(fromR,fromC,toR,toC,player)) return { ok:false, reason:'not-neighbor' };
+    // move
+    game.board[fromR][fromC] = 0;
+    game.board[toR][toC] = player;
+    // update order position: keep bornStep, only update r/c of that matching item
+    const idx = game.order.findIndex(o => o.r===fromR && o.c===fromC);
+    if (idx>=0) { game.order[idx].r=toR; game.order[idx].c=toC; }
+    const flipped = computeFlips(game.board, toR, toC, player);
+    for (const [fr,fc] of flipped) game.board[fr][fc] = player;
+    let removed = null;
+    if (game.order.length > MAX_ORDER) {
+      const old = game.order.shift();
+      if (game.board[old.r][old.c] !== 0) { game.board[old.r][old.c] = 0; removed = old; }
+    }
+    afterAction(player, flipped, removed);
+    return { ok:true, flipped, removed };
+  }
+
+  function isLegalMoveStep(fr,fc,tr,tc, player) {
+    const d = Math.max(Math.abs(fr-tr), Math.abs(fc-tc));
+    if (d !== 1) return false;
+    if (cfg.moveK === 4 && fr!==tr && fc!==tc) return false;
+    return true;
+  }
+
+  function afterAction(player, flipped, removed) {
+    game.stepN += 1;
+    const next = player===P1?P2:P1;
+    game.current = next;
+    // check win right now
+    const winInfo = checkWin();
+    if (winInfo) {
+      game.status = 'over';
+      game.result = winInfo;
+      return;
+    }
+    // check no legal actions for current player
+    const acts = listAllActions(game.current);
+    if (acts.length === 0) {
+      // pass: if both sides have no actions → end
+      // For simplicity: first stuck side passes, try other; if also stuck → end
+      // We'll just end immediately if side has no moves and side places no flips/no moves: just end
+      game.status = 'over';
+      game.result = majorityResult('双方无合法动作');
+    }
+  }
+
+  function countPieces() {
+    let a=0,b=0;
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
+      if (game.board[r][c]===P1) a++;
+      else if (game.board[r][c]===P2) b++;
+    }
+    return {p1:a,p2:b};
+  }
+
+  function majorityResult(reason) {
+    const {p1,p2} = countPieces();
+    let winner = 0;
+    if (p1 > p2) winner = P1;
+    else if (p2 > p1) winner = P2;
+    return { winner, reason: reason + ` (${p1}:${p2})` };
+  }
+
+  function checkWin() {
+    const {p1,p2} = countPieces();
+    // B: threshold 9
+    if (cfg.win === 'threshold') {
+      if (p1 >= 9) return { winner: P1, reason:'B·粉白达到 9 颗' };
+      if (p2 >= 9) return { winner: P2, reason:'B·紫蓝达到 9 颗' };
+      if (game.stepN >= 99) return majorityResult('达到 99 回合');
+      return null;
+    }
+    // C: 2x2 square
+    if (cfg.win === 'square22') {
+      for (let r=0;r<SIZE-1;r++) for (let c=0;c<SIZE-1;c++) {
+        const v = game.board[r][c];
+        if (v===0) continue;
+        if (game.board[r][c+1]===v && game.board[r+1][c]===v && game.board[r+1][c+1]===v) {
+          game.winCells = [[r,c],[r,c+1],[r+1,c],[r+1,c+1]];
+          return { winner: v, reason: (v===P1?'粉白':'紫蓝') + ' 形成 2×2 方阵' };
+        }
+      }
+      if (game.stepN >= 99) return majorityResult('达到 99 回合');
+      return null;
+    }
+    // A: majority by maxTurns OR no legal moves
+    if (game.stepN >= cfg.maxTurns) {
+      return majorityResult(`达到 ${cfg.maxTurns} 回合上限`);
+    }
+    return null;
+  }
+
+  // ======================= Actions Enumeration (for AI & legal check) =======================
+  function listAllActions(player) {
+    const acts = [];
+    // place
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) {
+      const flipped = computeFlips(game.board, r, c, player);
+      acts.push({ kind:'place', r, c, flipCount: flipped.length, flips: flipped });
+    }
+    // move
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===player) {
+      for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
+        const saved = game.board[r][c];
+        game.board[r][c] = 0;
+        game.board[nr][nc] = player;
+        const flipped = computeFlips(game.board, nr, nc, player);
+        game.board[r][c] = saved;
+        game.board[nr][nc] = 0;
+        acts.push({ kind:'move', fromR:r, fromC:c, r:nr, c:nc, flipCount: flipped.length, flips: flipped });
+      }
+    }
+    return acts;
+  }
+
+  // ======================= Rendering =======================
+  const boardEl = document.getElementById('board');
+
+  function buildBoardDOM() {
+    boardEl.innerHTML = '';
+    boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
+    boardEl.style.gridTemplateRows = `repeat(${SIZE}, 1fr)`;
+    for (let r=0;r<SIZE;r++) {
+      for (let c=0;c<SIZE;c++) {
+        const d = document.createElement('div');
+        d.className = 'cell';
+        d.dataset.r = r; d.dataset.c = c;
+        d.addEventListener('click', onCellClick);
+        boardEl.appendChild(d);
+      }
+    }
+  }
+
+  function cellAt(r,c) {
+    return boardEl.children[r*SIZE+c];
+  }
+
+  function render(extra = {}) {
+    // update counts / turn / turns chip
+    const {p1,p2} = countPieces();
+    document.getElementById('p1Count').textContent = p1;
+    document.getElementById('p2Count').textContent = p2;
+    const me = cfg.me;
+    const curText = game.current === P1
+      ? (me===P1 ? '你的回合 (粉白)' : 'AI 思考中 (粉白)')
+      : (me===P2 ? '你的回合 (紫蓝)' : 'AI 思考中 (紫蓝)');
+    const turnLabel = document.getElementById('turnLabel');
+    turnLabel.classList.remove('g1','g2');
+    turnLabel.classList.add(game.current===P1 ? 'g1' : 'g2');
+    document.getElementById('turnText').textContent = curText;
+
+    const total = cfg.win === 'majority' ? cfg.maxTurns : (cfg.win==='threshold'||cfg.win==='square22' ? 99 : cfg.maxTurns);
+    document.getElementById('turnChip').textContent = `回合 ${game.stepN} / ${total}`;
+
+    // pending-remove cell: oldest of order
+    const removeMark = game.order.length === MAX_ORDER ? game.order[0] : null;
+
+    // per-cell
+    const winSet = new Set((game.winCells||[]).map(([r,c])=>r+','+c));
+    for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
+      const el = cellAt(r,c);
+      const v = game.board[r][c];
+      // piece innerHTML — keep same piece element when not changing to avoid animation restart
+      const key = v === 0 ? '0' : ('p'+v);
+      if (el.dataset._k !== key) {
+        el.innerHTML = '';
+        if (v !== 0) {
+          const p = document.createElement('div');
+          p.className = 'piece ' + (v===P1?'p1':'p2');
+          el.appendChild(p);
+        }
+        el.dataset._k = key;
+      }
+      // classes — clean, re-add
+      el.classList.remove('place-hint','move-hint','selected','removing','ending','flipping','disabled');
+
+      if (removeMark && removeMark.r===r && removeMark.c===c) el.classList.add('removing');
+      if (winSet.has(r+','+c)) el.classList.add('ending');
+      if (extra.flipSet && extra.flipSet.has(r+','+c)) {
+        el.classList.add('flipping');
+      }
+
+      // Hints for user's turn
+      if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
+        if (mode === 'place') {
+          if (v === 0) el.classList.add('place-hint');
+        } else { // move
+          // User's piece is selectable (highlight as moving origin? We'll use 'selected' when actually picked.)
+          if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
+          // Show move destination hints when piece is selected
+          if (movingSel) {
+            if (isDestOf(movingSel.r, movingSel.c, r, c)) el.classList.add('move-hint');
+          }
+          // Dim non-actionable: own piece with no neighbor empty can't be moved; but it's OK
+        }
+      } else {
+        el.classList.add('disabled');
+      }
+    }
+
+    // End banner
+    const banner = document.getElementById('endBanner');
+    if (game.status === 'over') {
+      const r = game.result || {};
+      let msg;
+      if (r.winner === 0) msg = `平局 · ${r.reason||''}`;
+      else if (r.winner === cfg.me) msg = `🎉 你赢了 · ${r.reason||''}`;
+      else msg = `AI 获胜 · ${r.reason||''}`;
+      document.getElementById('endMsg').textContent = msg;
+      banner.classList.add('show');
+    } else {
+      banner.classList.remove('show');
+    }
+
+    // Mode tabs
+    const tp = document.getElementById('tabPlace'), tm = document.getElementById('tabMove');
+    tp.classList.toggle('active', mode==='place');
+    tm.classList.toggle('active', mode==='move');
+
+    const hint = document.getElementById('hint');
+    if (game.status !== 'playing') {
+      hint.textContent = '对局结束';
+    } else if (aiThinking) {
+      hint.textContent = 'AI 思考中…';
+    } else if (mode === 'place') {
+      hint.textContent = '放置模式：点空格落子，之后触发 8 方向夹击翻转';
+    } else if (!movingSel) {
+      hint.textContent = '移动模式：先点你的一颗棋子，再点绿色虚线框目标格';
+    } else {
+      hint.textContent = `已选 (${movingSel.r+1},${movingSel.c+1})，点绿色目标格确认移动，或再次点已选棋取消`;
+    }
+  }
+
+  function isDestOf(fr,fc,tr,tc) {
+    if (game.board[tr][tc]!==0) return false;
+    return isLegalMoveStep(fr,fc,tr,tc, cfg.me);
+  }
+
+  // ======================= User interactions =======================
+  function onCellClick(e) {
+    if (game.status!=='playing' || aiThinking) return;
+    if (game.current !== cfg.me) return;
+    const r = +e.currentTarget.dataset.r;
+    const c = +e.currentTarget.dataset.c;
+
+    if (mode === 'place') {
+      if (game.board[r][c]!==0) return;
+      performUserAction(()=>doPlace(r,c,cfg.me));
+    } else { // move
+      if (!movingSel) {
+        if (game.board[r][c] !== cfg.me) return; // must pick own piece
+        // must have at least one legal destination
+        if (moveNeighbors(r,c,cfg.moveK).length===0) { flashHint('这颗棋周围没空位可移动'); return; }
+        movingSel = {r,c}; render(); return;
+      }
+      // picked; clicking same cell = cancel
+      if (movingSel.r===r && movingSel.c===c) { movingSel=null; render(); return; }
+      // clicking another own piece = switch selection
+      if (game.board[r][c] === cfg.me) {
+        if (moveNeighbors(r,c,cfg.moveK).length===0) { flashHint('这颗棋周围没空位可移动'); return; }
+        movingSel = {r,c}; render(); return;
+      }
+      if (!isDestOf(movingSel.r, movingSel.c, r, c)) { flashHint('目标格无效'); return; }
+      const fr = movingSel.r, fc = movingSel.c;
+      movingSel = null;
+      performUserAction(()=>doMove(fr,fc,r,c,cfg.me));
+    }
+  }
+
+  function flashHint(t){ document.getElementById('hint').textContent = t; }
+
+  function performUserAction(fn) {
+    const before = performance.now();
+    const res = fn();
+    if (!res || !res.ok) { flashHint('无法执行这一步'); return; }
+    const flipSet = new Set(res.flipped.map(([r,c])=>r+','+c));
+    render({ flipSet });
+    if (game.status === 'over') return;
+    // schedule AI if it's AI turn
+    if (game.current !== cfg.me) scheduleAI();
+  }
+
+  // ======================= AI =======================
+  function scheduleAI() {
+    if (game.status !== 'playing') return;
+    aiThinking = true;
+    render();
+    const wait = cfg.diff === 'easy' ? 500 + Math.random()*300 : 700 + Math.random()*500;
+    aiTimer = setTimeout(runAI, wait);
+  }
+
+  function runAI() {
+    if (game.status !== 'playing') return;
+    const player = cfg.me === P1 ? P2 : P1;
+    const acts = listAllActions(player);
+    if (acts.length === 0) { aiThinking = false; game.status='over'; game.result = majorityResult('AI 无合法步'); render(); return; }
+
+    let chosen;
+    if (cfg.diff === 'easy') {
+      // 60% 完全随机；40% 走"赢的立即动作/翻≥2子"70%把握，其余仍随机
+      if (Math.random() < 0.60) {
+        chosen = acts[Math.floor(Math.random()*acts.length)];
+      } else {
+        // see any action that yields instant win condition? 70% take it
+        const instant = acts.filter(a => isWinningAction(a, player));
+        if (instant.length && Math.random() < 0.7) {
+          chosen = instant[Math.floor(Math.random()*instant.length)];
+        } else {
+          // 40% chance to top 2 flip counts; else random
+          if (Math.random() < 0.4) {
+            const sorted = [...acts].sort((a,b)=>b.flipCount-a.flipCount);
+            const top = sorted.slice(0, Math.min(2, sorted.length));
+            chosen = top[Math.floor(Math.random()*top.length)];
+          } else {
+            chosen = acts[Math.floor(Math.random()*acts.length)];
+          }
+        }
+      }
+    } else { // std
+      // Score each: flipCount*10 + posScore(r,c) - riskFlipLoss*5 + (immediateWin? 1000)
+      // Compute risk: after action, simulate if opponent's best flip > ours by 2+ -> penalty
+      const scored = acts.map(a => {
+        const snap = snapshot();
+        applyAction(a, player);
+        const winNow = checkWin()?.winner === player;
+        // opponent best flip
+        let oppBest = 0;
+        if (game.status === 'playing') {
+          const opp = listAllActions(player===P1?P2:P1);
+          for (const o of opp) if (o.flipCount > oppBest) oppBest = o.flipCount;
+          // opponent instant-win check
+          if (opp.some(o => isWinningAction(o, player===P1?P2:P1))) oppBest += 6;
+        }
+        const posS = posScore(a.r, a.c);
+        restore(snap);
+        let s = a.flipCount * 10 + posS - oppBest * 6 + (winNow ? 9999 : 0);
+        // small jitter to avoid deterministic
+        s += Math.random()*0.5;
+        return { a, s };
+      });
+      scored.sort((x,y)=>y.s-x.s);
+      // 15% randomness: pick top 3 at random
+      if (Math.random() < 0.15) {
+        const top = scored.slice(0, Math.min(3, scored.length));
+        chosen = top[Math.floor(Math.random()*top.length)].a;
+      } else {
+        chosen = scored[0].a;
+      }
+    }
+
+    // Execute chosen
+    let res;
+    if (chosen.kind === 'place') res = doPlace(chosen.r, chosen.c, player);
+    else res = doMove(chosen.fromR, chosen.fromC, chosen.r, chosen.c, player);
+    aiThinking = false;
+    const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
+    render({ flipSet });
+  }
+
+  function posScore(r,c) {
+    // center 4 cells (1,1),(1,2),(2,1),(2,2) best -> 5; corners -> 3; edges -> 2
+    const centerR = (r===1||r===2), centerC=(c===1||c===2);
+    if (centerR && centerC) return 5;
+    if ((r===0||r===SIZE-1) && (c===0||c===SIZE-1)) return 3;
+    if (centerR!==centerC /* edge */) return 2;
+    return 2;
+  }
+
+  function isWinningAction(a, player) {
+    // simulate action (snapshot/restore) and see if game.result.winner === player
+    const snap = snapshot();
+    if (a.kind==='place') doPlace(a.r,a.c,player);
+    else doMove(a.fromR,a.fromC,a.r,a.c,player);
+    const yes = (game.status==='over' && game.result && game.result.winner===player);
+    restore(snap);
+    return yes;
+  }
+
+  function snapshot() {
+    return {
+      board: game.board.map(r=>r.slice()),
+      order: game.order.map(o=>({r:o.r,c:o.c,bornStep:o.bornStep})),
+      stepN: game.stepN, current: game.current,
+      status: game.status, result: game.result ? {...game.result} : null,
+      winCells: game.winCells ? game.winCells.map(x=>x.slice()) : null,
+    };
+  }
+  function restore(s) {
+    game.board = s.board.map(r=>r.slice());
+    game.order = s.order.map(o=>({r:o.r,c:o.c,bornStep:o.bornStep}));
+    game.stepN = s.stepN; game.current = s.current;
+    game.status = s.status; game.result = s.result ? {...s.result} : null;
+    game.winCells = s.winCells ? s.winCells.map(x=>x.slice()) : null;
+  }
+  function applyAction(a, player) {
+    if (a.kind==='place') doPlace(a.r,a.c,player);
+    else doMove(a.fromR,a.fromC,a.r,a.c,player);
+  }
+
+  // ======================= Tabs & buttons =======================
+  document.getElementById('tabPlace').addEventListener('click', ()=>{
+    if (aiThinking || game.status!=='playing' || game.current!==cfg.me) return;
+    mode='place'; movingSel=null; render();
+  });
+  document.getElementById('tabMove').addEventListener('click', ()=>{
+    if (aiThinking || game.status!=='playing' || game.current!==cfg.me) return;
+    mode='move'; movingSel=null; render();
+  });
+  document.getElementById('btnRematch').addEventListener('click', ()=>{ startGame(); });
+  document.getElementById('btnBannerRestart').addEventListener('click', ()=>{ startGame(); });
+  document.getElementById('btnExit').addEventListener('click', backToSetup);
+  document.getElementById('btnBannerExit').addEventListener('click', backToSetup);
+
+  function backToSetup() {
+    clearTimeout(aiTimer); aiThinking=false;
+    document.getElementById('game').style.display='none';
+    document.getElementById('setup').style.display='block';
+  }
+
+  function startGame() {
+    game = newGame();
+    mode = 'place';
+    movingSel = null;
+    aiThinking = false;
+    clearTimeout(aiTimer);
+    buildBoardDOM();
+    render();
+    if (game.current !== cfg.me) scheduleAI();
+  }
+
+  // ensure board doesn't stick in DOM if user re-starts: build empty on initial click start — OK.
+
+})();
+</script>
+</body>
+</html>
