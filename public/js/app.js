@@ -373,35 +373,44 @@ const App = {
     this.aiCandidates = [];
     this.aiCandidatesActiveIdx = 0;
   },
-  startAiCandidateCycle(boardArr, totalDelay, mustIncludeKey) {
-    // 从所有空格挑 2-3 个候选位置（最多 3 个），循环切换红圈
-    // mustIncludeKey: "r-c"（真实 AI 将落子的位置）— 必须在候选中，保证最后一个高亮与实际落子一致
+  startAiCandidateCycle(boardArr, mustIncludeKey, opts) {
+    // opts: { targetCount?: number (1-3), cyclePeriod?: number (ms) }
+    // 若 opts 未传，则按默认参数推导（兼容旧调用）
+    opts = opts || {};
+    // 从所有空格挑候选位置，循环切换红圈
     const empties = [];
     for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (boardArr[r][c] === 0) empties.push(`${r}-${c}`);
-    if (empties.length === 0) return 0;
-    // Fisher-Yates
+    if (empties.length === 0) return opts.cyclePeriod || 800;
+    // Fisher-Yates 打乱
     for (let i = empties.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [empties[i], empties[j]] = [empties[j], empties[i]];
     }
-    // 候选最多 3 个（用户要求），最少 2 个保证有切换效果
-    const targetN = Math.max(2, Math.min(3, empties.length));
+    // 候选数量：用户要求 1-3 个随机；外部指定时优先用 opts.targetCount
+    let targetN;
+    if (typeof opts.targetCount === 'number') {
+      targetN = Math.max(1, Math.min(3, Math.min(opts.targetCount, empties.length)));
+    } else {
+      // 默认 1-3 随机
+      targetN = Math.max(1, Math.min(3, Math.min(1 + Math.floor(Math.random() * 3), empties.length)));
+    }
     let picked = empties.slice(0, targetN);
-    // 确保 mustIncludeKey 包含在内（如果提供且合法）
+    // 确保 mustIncludeKey 包含在内（候选保证出现过真实位置，最后"定格"也就能落在那）
     if (mustIncludeKey && empties.includes(mustIncludeKey) && !picked.includes(mustIncludeKey)) {
-      picked[targetN - 1] = mustIncludeKey;
+      picked[picked.length - 1] = mustIncludeKey;
     }
     this.aiCandidates = picked;
     this.aiCandidatesActiveIdx = 0;
 
-    // 候选切换周期：700-1100ms（用户要求跳慢）
-    const cyclePeriod = Math.max(700, Math.min(1100, Math.floor(totalDelay / 4.2)));
+    // 候选切换周期：外部传入 > 默认 1400-1600ms
+    const cyclePeriod = (typeof opts.cyclePeriod === 'number' && opts.cyclePeriod > 0)
+      ? opts.cyclePeriod
+      : (1400 + Math.floor(Math.random() * 201));
     this.render();
     this.aiCandidatesTimer = setInterval(() => {
       this.aiCandidatesActiveIdx = (this.aiCandidatesActiveIdx + 1) % this.aiCandidates.length;
       this.render();
     }, cyclePeriod);
-    // 返回周期，供"定格间隔"使用（用户要求：切换间隔与定格间隔一致）
     return cyclePeriod;
   },
 
@@ -709,13 +718,33 @@ const App = {
     this.stopAiCandidateCycle();
     this.setBoardDisabled(true);
 
-    const base = { easy: 1600, normal: 1250, hard: 950 }[this.difficulty] || 1200;
-    const jitter = Math.floor(Math.random() * 700);
-    const totalDelay = base + jitter;
+    // ======== 节奏设计（用户核心：保证玩家至少看完 1.5 个"消失预警闪烁"周期） ========
+    // 预警闪烁 fadeBlink 周期 = 4s → 1.5 周期 = 6s；本实现整段 AI 动画 = 6.5~8.3s
+    // 流程：
+    //   T=0     玩家下完，渲染 pendingRemove.fading + 候选红圈（渐入 ~450ms，见 CSS candidateIn）
+    //   T+0~S   候选按 cyclePeriod 切来切去（至少 4 轮，营造"思考"）
+    //   T+S     切到真实落子位置（定格）
+    //   T+S+F   再经过一个同样的 cyclePeriod 后真正落下（用户要求"按间隔实际落下"）
+    const aiTotalTime = 6500 + Math.floor(Math.random() * 1800); // 6500..8299 ms (6.5..8.3s)
 
-    // 第一步：同步计算真实 AI 着法（计算很快），以便：
-    //   ① 把 AI 真正的落子点塞入候选红圈，保证最后一个高亮就是落子位置
-    //   ② 不会下到候选没显示过的位置
+    // 候选切换间隔：1400-1600ms
+    const cyclePeriod = 1400 + Math.floor(Math.random() * 201);
+
+    // 定格：按设定的"同样间隔"（即 1 × cyclePeriod）
+    const freezeDuration = cyclePeriod;
+
+    // 切换阶段至少 4 轮（保证"反复思考"的视觉感，也保证够长的总时长）
+    const minSwitchCycles = 4;
+    let switchCycles = Math.floor((aiTotalTime - freezeDuration) / cyclePeriod);
+    if (switchCycles < minSwitchCycles) switchCycles = minSwitchCycles;
+    const thinkWaitTime = switchCycles * cyclePeriod;
+
+    // 候选数量：1~3 随机（用户要求"候选切换1-3个位置"）
+    let emptyCount = 0;
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (this.local.board[r][c] === 0) emptyCount++;
+    const targetCount = Math.max(1, Math.min(3, Math.min(1 + Math.floor(Math.random() * 3), emptyCount)));
+
+    // 同步计算 AI 真实着法
     const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
     if (!move) {
       this.clearAiTimer(true);
@@ -726,28 +755,23 @@ const App = {
     }
     const moveKey = `${move.row}-${move.col}`;
 
-    // 启动候选红圈循环切换，并强制包含真实位置 moveKey
-    this.startAiCandidateCycle(this.local.board, totalDelay, moveKey);
+    // 启动候选（渐入由 CSS candidateIn 处理）
+    this.startAiCandidateCycle(this.local.board, moveKey, { targetCount, cyclePeriod });
     this.render();
 
-    // 定格时长：用户要求 1500-2000ms 动态范围（不再使用切换周期等比；独立更长）
-    const freezeDuration = 1500 + Math.floor(Math.random() * 501); // 1500..2000 ms
-    // 前半段做候选切换；如果总时长不够容纳定格，就直接进入定格（保证定格至少 1500ms）
-    const thinkWaitTime = Math.max(0, totalDelay - freezeDuration);
     this.aiTimer = setTimeout(() => {
-      // 定格在真实落子点高亮
+      // ===== 定格：切换到真实落子位置 =====
       const idx = this.aiCandidates.indexOf(moveKey);
       if (idx >= 0) {
         this.aiCandidatesActiveIdx = idx;
         this.render();
       }
-      // 定格 1500-2000ms 后真正落子
+      // 经过一个完整的 cyclePeriod 定格展示后 → 实际落下（按同样间隔）
       this.aiTimer = setTimeout(() => {
         this.stopAiCandidateCycle();
         const res = this.local.place(move.row, move.col, aiPlayerNum);
         this.aiTimer = null;
         this.state = this.local.snapshot();
-        // 落子后有棋子消失，挂视觉幽灵播放淡出动画（逻辑已移除）
         if (res && res.removed) this.stageRemovingVisual(res.removed);
         this.setBoardDisabled(false);
         this.updateRestartButton();
