@@ -209,13 +209,22 @@
     <button class="btn ghost" id="btnBack">← 返回正式版</button>
 
     <div style="height:20px"></div>
+    <div class="card">
+      <div class="grp-title">开局布局</div>
+      <div class="opts" id="openingOpts">
+        <div class="opt active" data-v="empty"><div class="t">空棋盘（推荐）</div><div class="d">首子不强制翻转</div></div>
+        <div class="opt" data-v="center4"><div class="t">翻转棋标准</div><div class="d">中心 4 格对角交替摆子</div></div>
+      </div>
+    </div>
+
     <div class="legend card">
       <b>规则速查：</b><br>
       · 每回合 <b>放子</b> 或 <b>移动</b> 二选一（顶栏切换）<br>
       · 放子/移动落位后检查 8 方向夹击：己方 → 对方连续 → 己方，则中间子全翻为己方<br>
-      · 全局最多 <b>8 颗</b>，超过移除最旧那颗（按落下时间，不随移动/染色改变）<br>
-      · 移动不改变落子时间，每方一步行动后回合数 +1<br>
-      · 边框闪红 = 下一手将消失的最旧子
+      · 除开局首子（空棋盘开局）外，<b>放置/移动必须至少翻对方 1 子才算合法</b>，否则本回合自动跳过（PASS）<br>
+      · 棋子消失机制可切：不消失（纯翻转棋）或全局上限 8 颗 FIFO<br>
+      · 边框闪红 = 下一手将消失的最旧子（仅开启消失机制时显示）<br>
+      · 结束方式：棋盘占满 / 双方连续 PASS ×2 → 按子数多数结算
     </div>
   </div>
 
@@ -290,7 +299,7 @@
       });
     });
   }
-  optPicker('winOpts'); optPicker('moveOpts'); optPicker('vanishOpts'); optPicker('diffOpts'); optPicker('sideOpts');
+  optPicker('winOpts'); optPicker('moveOpts'); optPicker('vanishOpts'); optPicker('openingOpts'); optPicker('diffOpts'); optPicker('sideOpts');
 
   function activeVal(id) { return document.querySelector('#'+id+' .opt.active').dataset.v; }
 
@@ -304,13 +313,14 @@
     const win = activeVal('winOpts');
     const moveK = parseInt(activeVal('moveOpts'),10);
     const vanish = activeVal('vanishOpts');
+    const opening = activeVal('openingOpts');
     const maxOrder = vanish === 'no' ? Infinity : 8;
     const diff = activeVal('diffOpts');
     const me = parseInt(activeVal('sideOpts'),10);
-    cfg = { win, moveK, vanish, maxOrder, diff, me };
-    document.getElementById('ruleChip').textContent = ruleChipText(win, moveK, vanish);
+    cfg = { win, moveK, vanish, opening, maxOrder, diff, me };
+    document.getElementById('ruleChip').textContent = ruleChipText(win, moveK, vanish) + (opening==='center4' ? ' · 中心4子开局' : '');
     const leg = document.getElementById('gameLegend');
-    leg.innerHTML = winLegendText(win, moveK, maxOrder);
+    leg.innerHTML = winLegendText(win, moveK, maxOrder, opening);
     document.getElementById('setup').style.display = 'none';
     document.getElementById('game').style.display = 'block';
     startGame();
@@ -320,30 +330,53 @@
     location.href = location.pathname.endsWith('demo.html') ? './index.html' : './';
   });
 
-  function winLegendText(win, m, maxOrder) {
+  function winLegendText(win, m, maxOrder, opening) {
     const vanishLine = (maxOrder === Infinity) ? '棋子<b>不消失</b>（纯翻转棋）' : `全局上限 ${maxOrder} 颗 FIFO 消失`;
-    if (win === 'majority') return `<b>胜利：</b>棋盘占满 / 双方都无合法步时按<b>子数多者胜</b>（翻转棋标准）。<b>移动：</b>${m} 邻。`+vanishLine+`。<b>注意：</b>放置/移动必须至少翻对方 1 子才算合法，否则该回合自动跳过（PASS）。`;
-    if (win === 'threshold') return `<b>胜利：</b>任一方先达到 9 颗立即胜，否则棋盘占满/双方PASS两次按多数。<b>移动：</b>${m} 邻。`+vanishLine+`。`;
-    return `<b>胜利：</b>任一方先占据任一个 2×2 方块的 4 格立即获胜，否则同上兜底结算。<b>移动：</b>${m} 邻。`+vanishLine+`。`;
+    const openLine = opening === 'center4' ? '<b>开局：</b>中心 4 格对角摆子（翻转棋标准），首步起必须翻 ≥1 子。' : '<b>开局：</b>空棋盘；第一颗落子<b>不必翻转</b>；第二子起按标准必须翻 ≥1 子。';
+    if (win === 'majority') return `<b>胜利：</b>棋盘占满 / 双方都无合法步时按<b>子数多者胜</b>（翻转棋标准）。<b>移动：</b>${m} 邻。${vanishLine}。`+openLine;
+    if (win === 'threshold') return `<b>胜利：</b>任一方先达到 9 颗立即胜，否则棋盘占满/双方PASS两次按多数。<b>移动：</b>${m} 邻。${vanishLine}。`+openLine;
+    return `<b>胜利：</b>任一方先占据任一个 2×2 方块的 4 格立即获胜，否则同上兜底结算。<b>移动：</b>${m} 邻。${vanishLine}。`+openLine;
   }
 
   // ======================= Game Logic =======================
   function newGame() {
-    // 开局按翻转棋标准摆：(1,1)=P1, (1,2)=P2, (2,1)=P2, (2,2)=P1 中心四格对角交替
-    const board = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
-    board[1][1]=P1; board[1][2]=P2; board[2][1]=P2; board[2][2]=P1;
+    if (cfg.opening === 'center4') {
+      const board = Array.from({length:SIZE},()=>Array(SIZE).fill(0));
+      board[1][1]=P1; board[1][2]=P2; board[2][1]=P2; board[2][2]=P1;
+      return {
+        board,
+        order: [{r:1,c:1,bornStep:0,player:P1},{r:1,c:2,bornStep:0,player:P2},{r:2,c:1,bornStep:0,player:P2},{r:2,c:2,bornStep:0,player:P1}],
+        stepN: 0,
+        current: P1,
+        status: 'playing',
+        result: null,
+        winCells: null,
+        passes: 0,
+        lastPass: false,
+        passLog: [],
+      };
+    }
+    // 默认 / empty: 空棋盘开局
     return {
-      board,
-      order: [{r:1,c:1,bornStep:0},{r:1,c:2,bornStep:0},{r:2,c:1,bornStep:0},{r:2,c:2,bornStep:0}],
+      board: Array.from({length:SIZE},()=>Array(SIZE).fill(0)),
+      order: [],
       stepN: 0,
       current: P1,
       status: 'playing',
       result: null,
       winCells: null,
-      passes: 0,           // 连续跳过（pass）计数，≥2 判定双方都无合法步
+      passes: 0,
       lastPass: false,
-      passLog: [],         // 可选：给玩家提示
+      passLog: [],
     };
+  }
+
+  // 是否应该启用“必须至少翻 1 子”的合法性检查：
+  // - 翻转棋标准开局（center4）：全程启用
+  // - 空棋盘开局：只有“双方都还没下（order 空）”的第一子跳过；第 2 子起正常启用
+  function strictFlipRequired() {
+    if (cfg.opening === 'center4') return true;
+    return game.order.length >= 1;
   }
 
   function inBounds(r,c){ return r>=0&&r<SIZE&&c>=0&&c<SIZE; }
@@ -374,13 +407,13 @@
   }
 
   // Apply place in-place. Returns { ok, flipped, removed, reason }.
-  // 严格翻转棋合法：翻对方子数 ≥ 1，或者在开局没子的情况（空棋盘）允许首子（本demo中心已摆子，实际不会触发）。
+  // 空棋盘开局的首子：不强制翻；其余一律必须至少翻对方 1 子（翻转棋合法）。
   function doPlace(r,c,player) {
     if (!inBounds(r,c) || game.board[r][c]!==0) return { ok:false, reason:'invalid-cell' };
     const flipped = computeFlips(game.board, r, c, player);
-    if (flipped.length === 0) return { ok:false, reason:'must-flip' };
+    if (strictFlipRequired() && flipped.length === 0) return { ok:false, reason:'must-flip' };
     game.board[r][c] = player;
-    game.order.push({r,c, bornStep: game.stepN});
+    game.order.push({r,c, bornStep: game.stepN, player});
     for (const [fr,fc] of flipped) game.board[fr][fc] = player;
     let removed = null;
     const L = cfg.maxOrder;
@@ -399,14 +432,14 @@
     if (!inBounds(fromR,fromC) || !inBounds(toR,toC)) return { ok:false, reason:'oob' };
     if (game.board[fromR][fromC]!==player || game.board[toR][toC]!==0) return { ok:false, reason:'invalid' };
     if (!isLegalMoveStep(fromR,fromC,toR,toC,player)) return { ok:false, reason:'not-neighbor' };
-    // Simulate flips after move (strict: must flip ≥1, same as place)
+    // Simulate flips after move
     const savedF = game.board[fromR][fromC];
     game.board[fromR][fromC] = 0;
     game.board[toR][toC] = player;
     const flipped = computeFlips(game.board, toR, toC, player);
-    // revert until check passes
     game.board[fromR][fromC] = savedF;
     game.board[toR][toC] = 0;
+    // 移动永远需要翻（相当于主动的夹击策略动作）；空开局特例也不给“移动不翻”。
     if (flipped.length === 0) return { ok:false, reason:'must-flip' };
 
     // commit move
@@ -536,19 +569,19 @@
   }
 
   // ======================= Actions Enumeration (for AI & legal check) =======================
-  // 严格翻转棋合法：place/move 必须至少翻对方 1 子（否则本回合自动 PASS）
+  // 空开局的第一个放置（order 空）允许不翻；其余一律必须至少翻对方 1 子（移动永远要求翻）
   function listAllActions(player) {
     const acts = [];
+    const mustFlip = strictFlipRequired();
     // place
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) {
       const flipped = computeFlips(game.board, r, c, player);
-      if (flipped.length === 0) continue;
+      if (mustFlip && flipped.length === 0) continue;
       acts.push({ kind:'place', r, c, flipCount: flipped.length, flips: flipped });
     }
-    // move
+    // move — 永远需要翻
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===player) {
       for (const [nr,nc] of moveNeighbors(r,c, cfg.moveK)) {
-        // simulate move then computeFlips at dest
         const saved = game.board[r][c];
         game.board[r][c] = 0;
         game.board[nr][nc] = player;
@@ -609,9 +642,10 @@
     let validPlaceSet = null, validMoveDestBySel = null, myPiecesMovable = new Set();
     if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
       validPlaceSet = new Set();
+      const mustFlip = strictFlipRequired();
       for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) {
         const fl = computeFlips(game.board, r, c, cfg.me);
-        if (fl.length>0) validPlaceSet.add(r+','+c);
+        if (!mustFlip || fl.length>0) validPlaceSet.add(r+','+c);
       }
       myPiecesMovable = new Set();
       for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===cfg.me) {
