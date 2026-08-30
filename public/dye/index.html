@@ -28,11 +28,12 @@
 }
 
 html, body {
-  margin: 0; padding: 0; width: 100%; height: 100%;
+  margin: 0; padding: 0; width: 100%; min-height: 100%;
   font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   color: var(--text);
   background: radial-gradient(ellipse at top, #1b1040 0%, var(--bg-1) 35%, var(--bg-0) 100%);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -171,10 +172,16 @@ body::after {
 /* ============ 主菜单 ============ */
 .page {
   position: relative; z-index: 5;
-  width: 100%; height: 100%;
+  width: 100%; min-height: 100vh;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 16px;
+  align-items: center; justify-content: flex-start;
+  padding-top: clamp(16px, 4vh, 40px);
+  padding-bottom: clamp(28px, 7vh, 72px);
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hero {
@@ -967,6 +974,12 @@ body::after {
 
       <div class="dye-setup-actions">
         <button class="btn primary" id="btnStart"><span class="btn-icon">✦</span> 开始对局</button>
+        <button class="btn" id="btn-online-create">
+          <span class="btn-icon">◈</span> 创建联机房间
+        </button>
+        <button class="btn" id="btn-online-join">
+          <span class="btn-icon">◇</span> 加入房间
+        </button>
         <a class="btn" href="../index.html" style="text-decoration:none;text-align:center"><span class="btn-icon">◇</span> 其他模式</a>
       </div>
       <div style="height:18px"></div>
@@ -1246,6 +1259,24 @@ window.__moon_chess_showOnlineTip = function() {
     startGame();
   });
 
+  // 联机按钮：当前是纯静态分享版本 → 弹部署指南
+  const btnOnlineCreateD = document.getElementById('btn-online-create');
+  const btnOnlineJoinD   = document.getElementById('btn-online-join');
+  btnOnlineCreateD && btnOnlineCreateD.addEventListener('click', () => {
+    if (typeof window.__moon_chess_showOnlineTip === 'function') {
+      window.__moon_chess_showOnlineTip();
+    } else if (typeof showOnlineTip === 'function') {
+      showOnlineTip();
+    }
+  });
+  btnOnlineJoinD && btnOnlineJoinD.addEventListener('click', () => {
+    if (typeof window.__moon_chess_showOnlineTip === 'function') {
+      window.__moon_chess_showOnlineTip();
+    } else if (typeof showOnlineTip === 'function') {
+      showOnlineTip();
+    }
+  });
+
   // 对局内切换 4 邻 / 8 邻
   document.getElementById('btnInGameMoveK').addEventListener('click', () => {
     if(!cfg) return;
@@ -1515,7 +1546,7 @@ window.__moon_chess_showOnlineTip = function() {
   }
 
   // ======================= User interactions =======================
-  // 合并交互：点击空格 = 放子；点击己方棋子 = 选中(显示绿色可移动目标)；再次点已选棋取消；选中时点击合法目标格移动；选中时点击别的己方棋子 = 切换选中；选中时点击其它(非目标)空格 = 取消选中并直接放子
+  // 合并交互：点击空格 = 放子；点击己方棋子 = 选中(显示绿色可移动目标)；再次点已选棋取消；选中时点击合法目标格移动；选中时点击别的己方棋子 = 切换选中；选中时点击非合法目标位置（空格/对方子）= 仅退出移动模式
   function onCellClick(e) {
     if (game.status!=='playing' || aiThinking) return;
     if (game.current !== cfg.me) return;
@@ -1532,8 +1563,13 @@ window.__moon_chess_showOnlineTip = function() {
         performUserAction(()=>doMove(fr,fc,r,c,cfg.me));
         return;
       }
-      // Treat as place
-      movingSel = null;
+      // There is a selection but this empty cell is NOT a valid target → 退出移动模式
+      if (movingSel) {
+        movingSel = null;
+        render();
+        return;
+      }
+      // No selection → place
       performUserAction(()=>doPlace(r,c,cfg.me));
       return;
     }

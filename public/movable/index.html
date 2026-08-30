@@ -28,11 +28,12 @@
 }
 
 html, body {
-  margin: 0; padding: 0; width: 100%; height: 100%;
+  margin: 0; padding: 0; width: 100%; min-height: 100%;
   font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   color: var(--text);
   background: radial-gradient(ellipse at top, #1b1040 0%, var(--bg-1) 35%, var(--bg-0) 100%);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -171,10 +172,16 @@ body::after {
 /* ============ 主菜单 ============ */
 .page {
   position: relative; z-index: 5;
-  width: 100%; height: 100%;
+  width: 100%; min-height: 100vh;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 16px;
+  align-items: center; justify-content: flex-start;
+  padding-top: clamp(16px, 4vh, 40px);
+  padding-bottom: clamp(28px, 7vh, 72px);
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hero {
@@ -594,9 +601,44 @@ body::after {
     inset 0 0 10px rgba(255, 70, 90, 0.28);
   animation: candidatePulse 1.6s ease-in-out infinite;
 }
+/* 候选——虚假"place"目标：红粉色系 与 现有候选一致 */
+.cell .think-candidate.place {}
+/* 候选——虚假"移动目标"位置：青蓝色系，区别于 place */
+.cell .think-candidate.move-target-cand {
+  border-color: rgba(110, 230, 255, 0.35);
+}
+.cell .think-candidate.move-target-cand.dim {
+  border-color: rgba(110, 230, 255, 0.28);
+}
+.cell .think-candidate.move-target-cand.active {
+  border-color: rgba(110, 230, 255, 0.95);
+  box-shadow:
+    0 0 14px rgba(110, 230, 255, 0.5),
+    inset 0 0 10px rgba(110, 230, 255, 0.28);
+  animation: candidatePulse 1.6s ease-in-out infinite;
+}
+/* 候选——最终要下的位置（move to）：金绿色高亮点亮 */
+.cell .think-candidate.final.active {
+  border-color: rgba(255, 225, 120, 1);
+  box-shadow:
+    0 0 18px rgba(255, 205, 86, 0.7),
+    inset 0 0 12px rgba(255, 225, 120, 0.35);
+  animation: candidatePulse 1.4s ease-in-out infinite;
+}
 @keyframes candidatePulse {
   0%,100% { transform: scale(1.02); opacity: 0.88; }
   50%     { transform: scale(1.14); opacity: 1;    }
+}
+/* AI 思考时：棋子被"选中"（AI 决定移动哪颗）——金绿色外框脉冲 */
+.piece.ai-selected {
+  outline: 3px solid rgba(130, 255, 180, 0.95);
+  outline-offset: 2px;
+  border-radius: 50%;
+  animation: aiSelPulse 0.9s ease-in-out infinite;
+}
+@keyframes aiSelPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(130,255,180,0.6), 0 0 24px rgba(255,255,255,0.25) inset; }
+  50%     { box-shadow: 0 0 0 8px rgba(130,255,180,0.0), 0 0 28px rgba(255,255,255,0.35) inset; }
 }
 
 /* 落子动效 */
@@ -818,15 +860,20 @@ body::after {
   50%     { transform: scale(1.08); opacity: 1; }
 }
 .piece.slide-from {
-  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform;
+  /* 起始棋子：直接做淡出 + 缩小（避免跨格 transform 被 cell 圆角裁切） */
+  animation: slideFadeOut 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: opacity, transform;
+}
+@keyframes slideFadeOut {
+  0%   { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: scale(0.55); filter: blur(3px); }
 }
 .piece.slide-to {
   animation: slideIn 600ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 @keyframes slideIn {
-  0%   { opacity: 0; transform: scale(0.75); filter: blur(3px); }
-  60%  { opacity: 0.9; transform: scale(1.06); filter: blur(0); }
+  0%   { opacity: 0; transform: scale(0.55); filter: blur(3px); }
+  60%  { opacity: 0.95; transform: scale(1.1); filter: blur(0); }
   100% { opacity: 1; transform: scale(1); }
 }
 
@@ -882,10 +929,10 @@ body::after {
       <button class="btn primary" id="btn-local">
         <span class="btn-icon">✦</span> 单机对战
       </button>
-      <button class="btn" id="btn-online-create" style="display:none">
+      <button class="btn" id="btn-online-create">
         <span class="btn-icon">◈</span> 创建联机房间
       </button>
-      <button class="btn" id="btn-online-join" style="display:none">
+      <button class="btn" id="btn-online-join">
         <span class="btn-icon">◇</span> 加入房间
       </button>
       <a class="btn" href="../index.html" style="text-decoration:none;text-align:center">
@@ -1039,35 +1086,42 @@ body::after {
     </div>
   </div>
   <script>
-window.MOON_CHESS_STANDALONE = true;
-if (typeof window.io !== "function") {
-  window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
-}
-window.__moon_chess_showOnlineTip = function() {
-  var TIP_ID = '__mc_online_tip_v3__';
-  if (document.getElementById(TIP_ID)) return;
-  var wrap = document.createElement('div');
-  wrap.id = TIP_ID;
-  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
-  var dialog = document.createElement('div');
-  dialog.style.cssText = 'max-width:440px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
-  var h3 = document.createElement('h3');
-  h3.textContent = '联机对战提示';
-  h3.style.cssText = 'margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
-  var p = document.createElement('p');
-  p.innerHTML = '当前是纯静态分享版本，<b style="color:#4cc9f0">单机对战（含三档 AI、慢速思考+预选提示、消失闪烁、重开确认、横幅结果、响应式）全部正常</b>。联机对战（房间邀请制、实时同步）需要部署 Node WebSocket 服务端。';
-  p.style.cssText = 'color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
-  var pre = document.createElement('pre');
-  pre.style.cssText = 'background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px';
-  pre.textContent = '【推荐 Koyeb 免费层一键部署（无需绑卡）】\nhttps://app.koyeb.com/apps/deploy?type=git&repository=github.com/Warpeas/moon-chess&branch=main&builder=dockerfile&ports=3000;http;/&name=moon-chess\n\n【Docker 自托管】\ndocker build -t moon-chess . && docker run -p 3000:3000 moon-chess';
-  var btn = document.createElement('button');
-  btn.textContent = '知道了';
-  btn.style.cssText = 'width:100%;padding:10px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
-  btn.onclick = function(){ wrap.remove(); };
-  dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
-  wrap.appendChild(dialog);
-  document.body.appendChild(wrap);
-};
+(function () {
+  var host = (location && location.hostname) || '';
+  var proto = (location && location.protocol) || '';
+  var isGitHubIo = /(^|\.)github\.io$/i.test(host) || /(^|\.)pages\.dev$/i.test(host);
+  var isLocalFile = /^file:/i.test(proto);
+  var hasSocketIO = typeof window.io === 'function' && !window.__MC_IO_SHIMMED__;
+  var isStatic = !hasSocketIO || isGitHubIo || isLocalFile;
+
+  window.__MC_DEPLOY_MODE__ = isStatic ? 'STATIC' : 'SOCKET';
+  window.MOON_CHESS_STANDALONE = isStatic;
+  if (!hasSocketIO) {
+    window.__MC_IO_SHIMMED__ = true;
+    window.io = function(){ return { on(){}, emit(){}, disconnect(){} }; };
+  }
+  function showTip(){
+    var TIP_ID='__mc_online_tip_v4__'; if (document.getElementById(TIP_ID)) return;
+    var wrap=document.createElement('div'); wrap.id=TIP_ID;
+    wrap.style.cssText='position:fixed;inset:0;background:rgba(4,6,15,.92);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,sans-serif';
+    var dialog=document.createElement('div');
+    dialog.style.cssText='max-width:460px;background:linear-gradient(180deg,rgba(26,10,64,.96),rgba(10,15,34,.98));border:1px solid rgba(199,125,255,.28);border-radius:18px;padding:24px;box-shadow:0 20px 80px rgba(0,0,0,.7),0 0 60px rgba(157,78,221,.25)';
+    var h3=document.createElement('h3'); h3.textContent='联机对战 · 部署提示';
+    h3.style.cssText='margin:0 0 10px;font-size:18px;letter-spacing:2px;background:linear-gradient(90deg,#c77dff,#4cc9f0);-webkit-background-clip:text;background-clip:text;color:transparent';
+    var p=document.createElement('p');
+    p.innerHTML='当前部署在 <b style="color:#ffd9ee">'+(isLocalFile?'本地 file:// 直接打开':'GitHub Pages 纯静态环境')+'</b>，它<u>不支持</u> WebSocket 实时同步。<br>单机对战（AI、思考红圈、移动/闪烁/消逝/重开、响应式）<b style="color:#4cc9f0">全部正常</b>。<br>联机对战需要部署支持 HTTP + WebSocket 的服务器。';
+    p.style.cssText='color:#cdd5ff;line-height:1.8;font-size:13px;margin:0 0 14px';
+    var pre=document.createElement('pre');
+    pre.style.cssText='background:#05070f;color:#8dd;font-size:11px;padding:10px 12px;border-radius:10px;overflow:auto;margin:0 0 14px;white-space:pre-wrap;word-break:break-all';
+    pre.textContent = '【推荐 · Koyeb 免费层一键部署（无需绑卡）】\nhttps://app.koyeb.com/apps/deploy?type=git&repository=github.com/Warpeas/moon-chess&branch=main&builder=dockerfile&ports=3000;http;/&name=moon-chess\n\n【Docker 自托管（默认 3000 端口）】\ndocker build -t moon-chess . && docker run -p 3000:3000 moon-chess\n\n【Node 本地开发】\n在 moon-chess 仓库根目录执行：\n  npm install  &&  npm start\n  浏览器打开 http://localhost:3000/\n\n【部署成功后联机按钮直接可用】\n- 创建房间 → 发邀请链接 /r/<房间号> 给好友\n- 加入房间 → 输入 6 位房间号 → 开始对战';
+    var btn=document.createElement('button'); btn.textContent='知道了，我继续玩单机';
+    btn.style.cssText='width:100%;padding:11px;border-radius:999px;background:linear-gradient(135deg,#7b2cbf,#c77dff);color:#fff;border:0;font-weight:600;letter-spacing:2px;cursor:pointer';
+    btn.onclick=function(){wrap.remove();};
+    dialog.appendChild(h3); dialog.appendChild(p); dialog.appendChild(pre); dialog.appendChild(btn);
+    wrap.appendChild(dialog); document.body.appendChild(wrap);
+  }
+  window.__moon_chess_showOnlineTip = showTip;
+})();
   </script>
   <script>
 // AI 算法 —— 井字棋 + 消失规则（每方最多 3 颗，放新子后己方最早子消失；轮到己方回合时己方最早子闪烁警告）
@@ -1540,12 +1594,16 @@ const App = {
   // rematch: { status: 'none'|'pending'|'accepted'|'rejected', guestResponse: null|true|false }
   rematch: { status: 'none', byHost: false, guestResponse: null },
 
-  // AI 调度：延迟时间 & 思考候选红圈（2-3 个位置循环切换）
+  // AI 调度：延迟时间 & 思考候选红圈（结构：每步带 kind = place / piece-select / move-target / final）
   aiTimer: null,
   aiCandidatesTimer: null,
-  aiCandidates: [],          // [{row,col}, ...]
+  // 向后兼容：简单 place 情况才用，否则以下结构化字段生效
+  aiCandidates: [],          // key "r-c" array
   aiCandidatesActiveIdx: 0,
   aiSelectedMove: null,      // 如果 action 是 move, 额外记住起始格给视觉
+  // 结构化 AI 思考动画：steps 每步 {kind, row, col}
+  aiThinkSteps: [],          // [{kind:'place'|'piece-select'|'move-target'|'final', row, col}]
+  aiThinkActiveIdx: 0,
 
   // 玩家选中：移动前选中己方棋子 {row, col}
   selected: null,
@@ -1816,6 +1874,9 @@ const App = {
     }
     this.aiCandidates = [];
     this.aiCandidatesActiveIdx = 0;
+    // 清空结构化思考步骤
+    this.aiThinkSteps = [];
+    this.aiThinkActiveIdx = 0;
   },
   startAiCandidateCycle(boardArr, mustIncludeKey, opts) {
     // opts: { targetCount?: number (1-3), cyclePeriod?: number (ms) }
@@ -2138,6 +2199,12 @@ const App = {
 
       // 已选中己方棋子
       if (this.selected) {
+        // 再点同一颗己方棋子 = 退出移动模式
+        if (cellVal === humanPlayer && this.selected.row === row && this.selected.col === col) {
+          this.selected = null;
+          this.render();
+          return;
+        }
         // 再点另一个己方棋子 = 切换选中
         if (cellVal === humanPlayer) {
           this.selected = { row, col };
@@ -2146,7 +2213,7 @@ const App = {
         }
         // 点空格：
         //   1) 若是当前选中棋子合法 4 邻目标 → 移动
-        //   2) 否则 → 当作落子（并取消选中）
+        //   2) 非合法目标位置 → 退出移动模式（不再视为落子）
         if (cellVal === 0) {
           const targets = this.local.validMovesOf(humanPlayer, this.selected.row, this.selected.col);
           const isTarget = targets.some(t => t.row === row && t.col === col);
@@ -2171,22 +2238,15 @@ const App = {
             }
             return;
           } else {
-            // 不合法：就视为要在该空格落子（"选中状态下的落子"）
+            // 非合法目标位置 = 退出移动模式
             this.selected = null;
-            const res = this.local.place(row, col, humanPlayer);
-            if (!res.ok) return;
-            this.state = this.local.snapshot();
-            if (res.removed) this.stageRemovingVisual(res.removed);
-            this.updateRestartButton();
             this.render();
-            if (this.state.status === 'playing' && this.state.current === aiPlayer) {
-              const aiRef = aiPlayer;
-              setTimeout(() => this.scheduleAiMove(aiRef), 60);
-            }
             return;
           }
         }
-        // 点对方子：忽略
+        // 点对方子：退出移动模式
+        this.selected = null;
+        this.render();
         return;
       }
 
@@ -2226,18 +2286,16 @@ const App = {
     this.stopAiCandidateCycle();
     this.setBoardDisabled(true);
 
-    // ======== 用户指定的严格时序（线性非循环）========
-    //   结构：[随机开始假位置, (1 个可选假位置), 实际要下的 moveKey]
-    //   数量：1-2 个假 + moveKey → 总候选 N = 2 或 3
-    //   节奏：
-    //     · 起始停留 = 0.4~0.6 × cyclePeriod（红圈刚渐入完就开始切，不滞重）
-    //     · 每次切换 = cyclePeriod（统一心跳 1400–1600ms）
-    //     · 定格(到 moveKey 后停留) = cyclePeriod（按用户要求"一个cyclePeriod后就落子"）
-    const cyclePeriod = 1400 + Math.floor(Math.random() * 201);          // 1400..1600
-    const preStay = Math.floor(cyclePeriod * (0.4 + Math.random() * 0.2)); // 0.4~0.6 倍 ≈ 560~960ms
-    const freezeDuration = cyclePeriod;
+    // ===== 通用时间参数 =====
+    //   每步显示节奏：
+    //     · 起始停留 firstStay = 0.4~0.6 × stepPeriod（渐入后立刻切，不滞重）
+    //     · 每步切换 = stepPeriod（统一心跳：1100~1300ms，整个动画比原版稍快，阶段多但步长短）
+    //     · 最终定格后停留 freeze = stepPeriod，然后执行着法
+    const stepPeriod = 1050 + Math.floor(Math.random() * 201);   // 1050..1250
+    const firstStay = Math.floor(stepPeriod * (0.4 + Math.random() * 0.2));
+    const freezeDuration = stepPeriod;
 
-    // === 1) 计算 AI 真实着法（action = place 或 move） ===
+    // ===== 1) 计算 AI 真实着法 =====
     const action = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
     if (!action) {
       this.clearAiTimer(true);
@@ -2246,50 +2304,86 @@ const App = {
       this.render();
       return;
     }
-    const moveKey = actionTargetKey(action);
     this.aiSelectedMove = action;
 
-    // === 2) 构造线性候选序列：[startFake, maybeFake, moveKey] — moveKey 永远在末尾
-    const empties = [];
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
-      if (this.local.board[r][c] === 0) {
-        const k = `${r}-${c}`;
-        if (k !== moveKey) empties.push(k);
+    // ===== 2) 构造结构化动画步骤 aiThinkSteps =====
+    //   Place 动作：[place 假]*1~2 → [final 真实落点]
+    //   Move  动作：[place 假]*1~2 → [piece-select 选中要移动的棋子] → [move-target 假目标]*0~1 → [final 真实移动目标]
+    const steps = [];
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
       }
+      return arr;
     }
-    for (let i = empties.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [empties[i], empties[j]] = [empties[j], empties[i]];
+    // 所有空格（候选 place 假位置 / move 假目标池）
+    const allEmpties = [];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+      if (this.local.board[r][c] === 0) allEmpties.push(`${r}-${c}`);
     }
-    const maxFake = Math.max(0, Math.min(2, empties.length));
-    const fakeCount = Math.max(0, Math.min(maxFake, 1 + Math.floor(Math.random() * 2)));
-    const pickedFakes = empties.slice(0, fakeCount);
-    const candidates = [...pickedFakes, moveKey];
-    const N = candidates.length;
-    const switches = N - 1;
-    this.aiCandidates = candidates;
+
+    if (action.kind === 'place') {
+      const targetKey = `${action.row}-${action.col}`;
+      const fakePool = shuffle(allEmpties.filter(k => k !== targetKey));
+      // 0~1 个虚假 place 位置（最多 1 个避免拖沓；加上 final 共 1~2 步）
+      const placeFakeCount = Math.min(fakePool.length, Math.random() < 0.5 ? 1 : 0);
+      for (let i = 0; i < placeFakeCount; i++) {
+        const [r, c] = fakePool[i].split('-').map(Number);
+        steps.push({ kind: 'place', row: r, col: c });
+      }
+      steps.push({ kind: 'final', row: action.row, col: action.col });
+    } else {
+      // Move 动作
+      const targetKey = `${action.to.row}-${action.to.col}`;
+      const fromKey = `${action.from.row}-${action.from.col}`;
+      const fakePlacePool = shuffle(allEmpties.filter(k => k !== targetKey && k !== fromKey));
+      // 阶段 1：0~1 个虚假 place 位置（"首先随机一个预选位置，然后最多一个其他的预选位置"）
+      const placeFakeCount = Math.max(0, Math.min(fakePlacePool.length, Math.random() < 0.35 ? 0 : (Math.random() < 0.7 ? 1 : 2)));
+      for (let i = 0; i < placeFakeCount; i++) {
+        const [r, c] = fakePlacePool[i].split('-').map(Number);
+        steps.push({ kind: 'place', row: r, col: c });
+      }
+      // 阶段 2：跳到"要移动的棋子"上（piece-select：棋子被高亮选中样式）
+      steps.push({ kind: 'piece-select', row: action.from.row, col: action.from.col });
+      // 阶段 3：类似预选的动画，在几个可移动位置上跳，最多 1 次（即最多 1 个虚假目标位置）
+      const validTargets = this.local.validMovesOf(aiPlayerNum, action.from.row, action.from.col);
+      const fakeTargetPool = shuffle(validTargets.filter(t => !(t.row === action.to.row && t.col === action.to.col)));
+      // 最多跳 1 次 = 最多 1 个虚假 move-target 候选
+      if (fakeTargetPool.length > 0 && Math.random() < 0.7) {
+        const t = fakeTargetPool[0];
+        steps.push({ kind: 'move-target', row: t.row, col: t.col });
+      }
+      // 阶段 4：实际要移动的位置（final）
+      steps.push({ kind: 'final', row: action.to.row, col: action.to.col });
+    }
+
+    this.aiThinkSteps = steps;
+    this.aiThinkActiveIdx = 0;
+    // 清旧候选（保持兼容空）
+    this.aiCandidates = [];
     this.aiCandidatesActiveIdx = 0;
     this.render();
 
-    // === 3) 时间线 ===
-    const arriveAtMoveKeyTime = preStay + switches * cyclePeriod;
-
-    // === 4) 线性排好每一次切换 ===
+    // ===== 3) 时间线：线性切换每一步 =====
+    const N = steps.length;
+    const switches = Math.max(0, N - 1);
     this._aiStepTimers = [];
     for (let k = 1; k <= switches; k++) {
-      const fireAt = preStay + k * cyclePeriod;
+      const fireAt = firstStay + k * stepPeriod;
       const stepIdx = k;
       const t = setTimeout(() => {
-        this.aiCandidatesActiveIdx = stepIdx;
+        this.aiThinkActiveIdx = stepIdx;
         this.render();
       }, fireAt);
       this._aiStepTimers.push(t);
     }
+    const arriveAtFinalTime = firstStay + switches * stepPeriod;
 
-    // === 5) 最后到达 moveKey → 定格 → 执行 action（place 或 move） ===
+    // ===== 4) 最终定格 freezeDuration 后执行着法 =====
     this.aiTimer = setTimeout(() => {
-      if (this.aiCandidatesActiveIdx !== N - 1) {
-        this.aiCandidatesActiveIdx = N - 1;
+      if (this.aiThinkActiveIdx !== N - 1) {
+        this.aiThinkActiveIdx = N - 1;
         this.render();
       }
       this.aiTimer = setTimeout(() => {
@@ -2322,7 +2416,7 @@ const App = {
           this.scheduleAiMove(this.state.current);
         }
       }, freezeDuration);
-    }, arriveAtMoveKeyTime);
+    }, arriveAtFinalTime);
   },
 
   // 顶部重开 / 结束横幅「再来一局」共用
@@ -2410,6 +2504,23 @@ const App = {
     }
     const selKey = this.selected ? `${this.selected.row}-${this.selected.col}` : null;
 
+    // ===== AI Think 步骤：建立 cellKey → { kind, active } 快速表 =====
+    //   单格同时出现多种时，优先级：piece-select（选中棋子） > final > move-target > place
+    const aiThinkMap = new Map(); // key -> { kind, active }
+    if (this.mode === 'local' && this.aiThinkSteps && this.aiThinkSteps.length > 0) {
+      for (let i = 0; i < this.aiThinkSteps.length; i++) {
+        const s = this.aiThinkSteps[i];
+        const kk = `${s.row}-${s.col}`;
+        const active = (i === this.aiThinkActiveIdx);
+        const prev = aiThinkMap.get(kk);
+        // 若有重复 key（如 from 格同时是 piece-select），只有当新 kind 优先级更高才替换
+        const PRIO = { 'place': 1, 'move-target': 2, 'final': 3, 'piece-select': 4 };
+        if (!prev || PRIO[s.kind] > PRIO[prev.kind] || (PRIO[s.kind] === PRIO[prev.kind] && active)) {
+          aiThinkMap.set(kk, { kind: s.kind, active });
+        }
+      }
+    }
+
     const cells = document.querySelectorAll('.cell');
     cells.forEach((el) => {
       const row = parseInt(el.dataset.row, 10);
@@ -2419,13 +2530,16 @@ const App = {
       const isSlideFrom = slide && slide.from.row === row && slide.from.col === col;
       const isSlideTo   = slide && slide.to.row === row && slide.to.col === col;
 
-      // 构建签名：包含 piece 本体/闪烁/选中/移动目标/slide 起始和终点/AI 候选
+      const aiInfo = aiThinkMap.get(k); // {kind, active} or undefined
+      const aiSelHere = aiInfo && aiInfo.kind === 'piece-select' && aiInfo.active;
+
+      // 构建签名
       let key;
       if (v !== 0 || isSlideFrom) {
         const player = v !== 0 ? v : slide.player;
         const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
-        const isSel = (selKey === k) || (slide && isSlideFrom);
-        key = 'p' + player + (isFading ? 'F' : '') + (isSel ? 'S' : '');
+        const isSel = (selKey === k) || (slide && isSlideFrom) || aiSelHere;
+        key = 'p' + player + (isFading ? 'F' : '') + (isSel ? 'S' : '') + (aiSelHere ? 'AIS' : '');
         if (isSlideFrom) key += 'sF';
       } else {
         if (visualR && visualR.row === row && visualR.col === col) {
@@ -2435,6 +2549,7 @@ const App = {
         } else if (this.mode === 'local' && moveTargetKeys.has(k)) {
           key = 'mT'; // move target
         } else if (this.mode === 'local' && this.aiCandidates.length > 0) {
+          // 向后兼容旧式
           const candIdx = this.aiCandidates.indexOf(k);
           if (candIdx > -1) {
             const active = (candIdx === this.aiCandidatesActiveIdx);
@@ -2442,6 +2557,9 @@ const App = {
           } else {
             key = 'e';
           }
+        } else if (aiInfo && (aiInfo.kind === 'place' || aiInfo.kind === 'move-target' || aiInfo.kind === 'final')) {
+          // 结构化 AI 候选：空格位置的三种候选
+          key = 'aiC:' + aiInfo.kind + ':' + (aiInfo.active ? 'A' : 'D');
         } else {
           key = 'e';
         }
@@ -2459,13 +2577,10 @@ const App = {
         if (isFading) piece.classList.add('fading');
         const isSel = (selKey === k) || isSlideFrom;
         if (isSel) piece.classList.add('selected');
+        if (aiSelHere) piece.classList.add('ai-selected');
         if (isSlideFrom) {
           piece.classList.add('slide-from');
-          const dx = (slide.to.col - slide.col);
-          const dy = (slide.to.row - slide.row);
-          requestAnimationFrame(() => {
-            piece.style.transform = `translate(calc(${dx} * (100% + var(--gap, 8px))), calc(${dy} * (100% + var(--gap, 8px))))`;
-          });
+          // 只做淡出+缩小动画（不再跨格 translate，避免被 .cell 圆角裁切）
         } else {
           piece.classList.add('drop');
           requestAnimationFrame(() => piece.classList.remove('drop'));
@@ -2495,6 +2610,16 @@ const App = {
           cv.className = 'think-candidate ' + (active ? 'active' : 'dim');
           el.appendChild(cv);
         }
+      } else if (aiInfo) {
+        // 结构化 AI：空格上的 place / move-target / final 候选圈
+        const cv = document.createElement('div');
+        let cls = 'think-candidate ';
+        if (aiInfo.kind === 'place') cls += 'place ';
+        else if (aiInfo.kind === 'move-target') cls += 'move-target-cand ';
+        else if (aiInfo.kind === 'final') cls += 'final ';
+        cls += aiInfo.active ? 'active' : 'dim';
+        cv.className = cls;
+        el.appendChild(cv);
       }
     });
 
