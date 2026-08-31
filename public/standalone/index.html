@@ -1438,7 +1438,7 @@ class LocalGame {
     this.status = 'playing';
     this.winner = 0;
     this.winLine = null;
-    this.pendingRemove = null;            // 任意一方达到 MAX → 该方最早子闪烁预告（回合对方思考期间看到警告；下一手自己落子后/回合开始时消掉）
+    this.pendingRemove = [];              // 双方独立：某方达到 MAX → 该方最早子入数组，持续闪烁预告；该方操作后/回合开始时自己最早子消掉
   }
   place(row, col, player) {
     if (this.status !== 'playing') return { ok: false };
@@ -1472,24 +1472,19 @@ class LocalGame {
       this.status = 'ended';
       this.winner = winner;
       this.winLine = winLine;
-      this.pendingRemove = null;
-      return { ok: true, removed, winner, winLine, pendingRemove: null, current: 0 };
+      this.pendingRemove = [];
+      return { ok: true, removed, winner, winLine, pendingRemove: [], current: 0 };
     }
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    // 闪烁预告：**双方各自**若已达 MAX 颗，则最早一颗闪烁（提醒对手「他下一手/我下一手就会蚀掉最早子」）。
-    // 优先显示「刚下完的一方」的警告（因为现在是对方在思考，他最需要看到这条预告）；
-    // 若刚下完这方没到 3，则看下一执棋方是否满 3，也让对方看到预告。
-    const justPlayed = this.current === P1 ? P2 : P1;
-    this.pendingRemove = null;
-    for (const side of [justPlayed, this.current]) {
+    // 闪烁预告：**双方各自**独立判断。哪方已满 MAX → 把该方最早子加入 pendingRemove 数组（双方互不影响）。
+    // 这样无论谁的回合在进行，只要某方最早子"会在下一次被消掉"就持续闪烁。
+    this.pendingRemove = [];
+    for (const side of [P1, P2]) {
       if (this.pieces[side].length >= MAX_PER_SIDE) {
         const old = this.pieces[side][0];
-        if (old) {
-          this.pendingRemove = { player: side, row: old.row, col: old.col };
-          break;
-        }
+        if (old) this.pendingRemove.push({ player: side, row: old.row, col: old.col });
       }
     }
     return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
@@ -1502,7 +1497,17 @@ class LocalGame {
   turnStartPruneCurrent() {
     if (this.status !== 'playing') return { removed: null, winner: 0, winLine: null };
     const player = this.current;
-    if (this.pieces[player].length < MAX_PER_SIDE) return { removed: null, winner: 0, winLine: null };
+    if (this.pieces[player].length < MAX_PER_SIDE) {
+      // 当前方未到 3 → 不消，但仍按双方满 3 情况重建闪烁预告（其他方可能已满 3）
+      this.pendingRemove = [];
+      for (const side of [P1, P2]) {
+        if (this.pieces[side].length >= MAX_PER_SIDE) {
+          const o = this.pieces[side][0];
+          if (o) this.pendingRemove.push({ player: side, row: o.row, col: o.col });
+        }
+      }
+      return { removed: null, winner: 0, winLine: null, pendingRemove: this.pendingRemove.slice(), current: this.current };
+    }
     const old = this.pieces[player].shift();
     if (!old) return { removed: null, winner: 0, winLine: null };
     const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
@@ -1514,12 +1519,18 @@ class LocalGame {
       this.status = 'ended';
       this.winner = nw.winner;
       this.winLine = nw.winLine;
-      this.pendingRemove = null;
-      return { removed: { ...old, player }, winner: nw.winner, winLine: nw.winLine, pendingRemove: null, current: 0 };
+      this.pendingRemove = [];
+      return { removed: { ...old, player }, winner: nw.winner, winLine: nw.winLine, pendingRemove: [], current: 0 };
     }
-    // classic 不使用闪烁预警；消完之后允许当前玩家下
-    this.pendingRemove = null;
-    return { removed: { ...old, player }, winner: 0, winLine: null, pendingRemove: null, current: this.current };
+    // 经典：回合开始消当前方满3的最早子。消完后，仍按双方队列重建闪烁预告（双方独立）
+    this.pendingRemove = [];
+    for (const side of [P1, P2]) {
+      if (this.pieces[side].length >= MAX_PER_SIDE) {
+        const o = this.pieces[side][0];
+        if (o) this.pendingRemove.push({ player: side, row: o.row, col: o.col });
+      }
+    }
+    return { removed: { ...old, player }, winner: 0, winLine: null, pendingRemove: this.pendingRemove.slice(), current: this.current };
   }
   _checkWin(board) {
     const lines = [
@@ -1541,7 +1552,7 @@ class LocalGame {
       status: this.status,
       winner: this.winner,
       winLine: this.winLine,
-      pendingRemove: this.pendingRemove,
+      pendingRemove: Array.isArray(this.pendingRemove) ? this.pendingRemove.slice() : [],
       pieces: { 1: this.pieces[1].map(p => ({...p})), 2: this.pieces[2].map(p => ({...p})) },
       order:  this.order.map(o => ({...o})),
     };
@@ -2448,6 +2459,9 @@ const App = {
     // ===== 每个单元格使用"渲染签名 + 缓存"，只在内容真正变化时重建 DOM
     // 目的：AI 候选切换动画时，不变的棋子（尤其是带 .fading 闪烁动画的）不会被销毁重建 → 动画流畅不卡
     const pendingRemove = this.state.pendingRemove;
+    // pendingRemove 现在是数组：按双方独立判断，[ {player,row,col}, ... ]
+    const pendingHas = (r, c) => Array.isArray(pendingRemove) &&
+      pendingRemove.some(p => p.row === r && p.col === c);
     const visualR = this.visualRemoving;
     const cells = document.querySelectorAll('.cell');
     cells.forEach((el) => {
@@ -2460,7 +2474,7 @@ const App = {
       let key;
       if (v !== 0) {
         key = 'p'; // 有棋
-        const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
+        const isFading = pendingHas(row, col);
         key += v + (isFading ? '-F' : '');
       } else {
         // 空棋格
@@ -2490,7 +2504,7 @@ const App = {
       if (v !== 0) {
         const piece = document.createElement('div');
         piece.className = 'piece p' + v;
-        const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
+        const isFading = pendingHas(row, col);
         if (isFading) piece.classList.add('fading');
         piece.classList.add('drop');
         requestAnimationFrame(() => piece.classList.remove('drop'));
