@@ -175,8 +175,8 @@ body::after {
   width: 100%; min-height: 100vh;
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-start;
-  padding-top: clamp(16px, 4vh, 40px);
-  padding-bottom: clamp(28px, 7vh, 72px);
+  padding-top: clamp(10px, 2.5vh, 22px);
+  padding-bottom: clamp(16px, 4vh, 40px);
   padding-left: 16px;
   padding-right: 16px;
   box-sizing: border-box;
@@ -186,14 +186,14 @@ body::after {
 
 .hero {
   text-align: center;
-  max-width: 480px;
-  padding: 20px;
+  max-width: 440px;
+  padding: 10px 16px;
 }
 .big-gem {
-  width: 140px; height: 140px;
-  margin: 0 auto 16px;
+  width: 88px; height: 88px;
+  margin: 0 auto 10px;
   animation: gemRotate 12s linear infinite;
-  filter: drop-shadow(0 0 30px rgba(157,78,221,0.6));
+  filter: drop-shadow(0 0 24px rgba(157,78,221,0.6));
 }
 @keyframes gemRotate {
   0% { transform: rotate(-6deg); }
@@ -203,23 +203,23 @@ body::after {
 .big-gem svg { width: 100%; height: 100%; }
 
 .hero h1 {
-  margin: 0; font-size: 42px; letter-spacing: 6px;
+  margin: 0; font-size: 30px; letter-spacing: 4px;
   background: linear-gradient(135deg, #fff 0%, var(--accent-3) 40%, var(--cool-blue) 100%);
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  text-shadow: 0 0 40px rgba(157,78,221,0.3);
+  text-shadow: 0 0 30px rgba(157,78,221,0.3);
 }
 .subtitle {
-  margin: 6px 0 14px;
+  margin: 4px 0 8px;
   color: var(--text-dim);
-  letter-spacing: 3px;
-  font-size: 13px;
+  letter-spacing: 2px;
+  font-size: 12px;
 }
 .rules-hint {
   color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1.7;
-  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 9px 12px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius);
@@ -228,8 +228,8 @@ body::after {
 .rules-hint b { color: var(--accent-3); }
 
 .menu-buttons {
-  display: flex; flex-direction: column; gap: 12px;
-  margin-top: 28px; width: 100%; max-width: 320px;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 16px; width: 100%; max-width: 320px;
 }
 
 .footer {
@@ -669,6 +669,7 @@ body::after {
 .modal-mask[hidden] { display: none !important; }
 
 .modal {
+  position: relative;
   min-width: 320px; max-width: 92vw;
   padding: 28px 24px;
   background: linear-gradient(180deg, rgba(26,10,64,0.9), rgba(10,15,34,0.95));
@@ -677,6 +678,17 @@ body::after {
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(123,44,191,0.2);
   text-align: center;
 }
+.modal-close {
+  position: absolute; top: 10px; right: 12px;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%;
+  background: rgba(255,255,255,0.08); color: var(--text-dim);
+  font-size: 16px; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  z-index: 2;
+}
+.modal-close:hover { background: rgba(255,255,255,0.14); color: #fff; }
 .modal h2 {
   margin: 0 0 8px;
   font-size: 22px; letter-spacing: 3px;
@@ -804,11 +816,11 @@ body::after {
 
   
 /* C 模式：染色版额外样式 */
-.dye-wrap { max-width: 560px; margin: 0 auto; padding: 12px 10px 28px; width: 100%; box-sizing: border-box; }
-.dye-card { background: rgba(25,22,46,.72); border: 1px solid rgba(120,105,220,.45); border-radius: 14px; padding: 14px; margin-bottom: 14px; backdrop-filter: blur(4px); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
-.dye-card h2 { font-size: 14px; margin: 2px 0 10px; letter-spacing: .5px; color: #c8bcff; font-weight: 600; }
+.dye-wrap { max-width: 560px; margin: 0 auto; padding: 4px 10px 16px; width: 100%; box-sizing: border-box; }
+.dye-card { background: rgba(25,22,46,.72); border: 1px solid rgba(120,105,220,.45); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; backdrop-filter: blur(4px); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+.dye-card h2 { font-size: 13px; margin: 2px 0 8px; letter-spacing: .5px; color: #c8bcff; font-weight: 600; }
 .dye-opts { display: grid; grid-template-columns: repeat(auto-fit,minmax(110px,1fr)); gap: 8px; }
-.dye-opt { border: 1px solid rgba(120,105,220,.45); background: rgba(40,36,75,.55); color: #f1ecff; border-radius: 10px; padding: 10px 8px; font-size: 13px; cursor: pointer; transition: all .15s ease; }
+.dye-opt { border: 1px solid rgba(120,105,220,.45); background: rgba(40,36,75,.55); color: #f1ecff; border-radius: 10px; padding: 8px 8px; font-size: 13px; cursor: pointer; transition: all .15s ease; }
 .dye-opt:hover { transform: translateY(-1px); }
 .dye-opt.active { border-color: #ff5577; box-shadow: 0 0 0 2px rgba(255,85,119,.25); background: linear-gradient(180deg, rgba(255,85,119,.18), rgba(40,36,75,.55)); }
 .dye-opt .t { font-weight: 600; }
@@ -1038,6 +1050,7 @@ body::after {
   <div class="modal-mask" id="difficulty-select">
 
     <div class="modal">
+      <button class="modal-close" type="button" aria-label="关闭">✕</button>
       <h2>选择 AI 难度</h2>
       <div class="diff-list">
         <button class="diff-btn" id="diff-easy">
@@ -1062,6 +1075,7 @@ body::after {
   <!-- ========== 选择执白 / 执黑（先后手） ========== -->
   <div class="modal-mask" id="side-select">
     <div class="modal">
+      <button class="modal-close" type="button" aria-label="关闭">✕</button>
       <h2>选择先后手</h2>
       <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
       <div class="diff-list">
@@ -1196,6 +1210,37 @@ window.__moon_chess_showOnlineTip = function() {
 
 (() => {
   'use strict';
+
+  // ======== 路由基准（GitHub Pages 项目站点子路径自适应） ========
+  // APP_BASE : 项目根绝对路径（带尾斜杠）。GitHub Pages 项目站点 = /moon-chess/，本地 = /。
+  // 「其他模式」按钮始终指向 APP_BASE（不带 index.html，统一为 /moon-chess/）。
+  const APP_BASE = (() => {
+    const REPO = '/moon-chess/';
+    return location.pathname.startsWith(REPO) ? REPO : '/';
+  })();
+  document.querySelectorAll('a.btn[href]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    if (/(^|\/)index\.html$/.test(href)) a.setAttribute('href', APP_BASE);
+  });
+
+  // ======== 页面滚动控制：进入对局时锁定滚动并回到顶端，返回菜单时恢复 ========
+  function setScrollLock(locked) {
+    document.documentElement.style.overflow = locked ? 'hidden' : '';
+    document.body.style.overflow = locked ? 'hidden' : '';
+    if (locked) window.scrollTo(0, 0);
+  }
+
+  // ======== 模态框：点击遮罩外部 或 点击 X 关闭 ========
+  document.querySelectorAll('.modal-mask').forEach(mask => {
+    mask.addEventListener('click', (e) => {
+      if (e.target === mask) mask.classList.remove('show');
+    });
+  });
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.modal-mask')?.classList.remove('show');
+    });
+  });
 
   function syncInGameMoveBtn(){
     if(!cfg) return;
@@ -1754,6 +1799,7 @@ window.__moon_chess_showOnlineTip = function() {
     clearTimeout(aiTimer); aiThinking=false;
     document.getElementById('game').classList.remove('show');
     (document.getElementById('menu').classList.add('show'), document.getElementById('game').classList.remove('show'));
+    setScrollLock(false);
   }
 
   function startGame() {
@@ -1764,6 +1810,7 @@ window.__moon_chess_showOnlineTip = function() {
     clearTimeout(aiTimer);
     buildBoardDOM();
     render();
+    setScrollLock(true);
     if (game.current !== cfg.me) scheduleAI();
   }
 

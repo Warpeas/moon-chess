@@ -175,8 +175,8 @@ body::after {
   width: 100%; min-height: 100vh;
   display: flex; flex-direction: column;
   align-items: center; justify-content: flex-start;
-  padding-top: clamp(16px, 4vh, 40px);
-  padding-bottom: clamp(28px, 7vh, 72px);
+  padding-top: clamp(10px, 2.5vh, 22px);
+  padding-bottom: clamp(14px, 3.5vh, 40px);
   padding-left: 16px;
   padding-right: 16px;
   box-sizing: border-box;
@@ -186,14 +186,14 @@ body::after {
 
 .hero {
   text-align: center;
-  max-width: 480px;
-  padding: 20px;
+  max-width: 440px;
+  padding: 10px 16px;
 }
 .big-gem {
-  width: 140px; height: 140px;
-  margin: 0 auto 16px;
+  width: 88px; height: 88px;
+  margin: 0 auto 10px;
   animation: gemRotate 12s linear infinite;
-  filter: drop-shadow(0 0 30px rgba(157,78,221,0.6));
+  filter: drop-shadow(0 0 24px rgba(157,78,221,0.6));
 }
 @keyframes gemRotate {
   0% { transform: rotate(-6deg); }
@@ -203,23 +203,23 @@ body::after {
 .big-gem svg { width: 100%; height: 100%; }
 
 .hero h1 {
-  margin: 0; font-size: 42px; letter-spacing: 6px;
+  margin: 0; font-size: 30px; letter-spacing: 4px;
   background: linear-gradient(135deg, #fff 0%, var(--accent-3) 40%, var(--cool-blue) 100%);
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  text-shadow: 0 0 40px rgba(157,78,221,0.3);
+  text-shadow: 0 0 30px rgba(157,78,221,0.3);
 }
 .subtitle {
-  margin: 6px 0 14px;
+  margin: 4px 0 8px;
   color: var(--text-dim);
   letter-spacing: 3px;
-  font-size: 13px;
+  font-size: 12px;
 }
 .rules-hint {
   color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1.7;
-  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 9px 12px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius);
@@ -228,12 +228,12 @@ body::after {
 .rules-hint b { color: var(--accent-3); }
 
 .menu-buttons {
-  display: flex; flex-direction: column; gap: 12px;
-  margin-top: 28px; width: 100%; max-width: 320px;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 16px; width: 100%; max-width: 320px;
 }
 
 .footer {
-  margin-top: 24px;
+  margin-top: 14px;
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 2px;
@@ -704,6 +704,7 @@ body::after {
 .modal-mask[hidden] { display: none !important; }
 
 .modal {
+  position: relative;
   min-width: 320px; max-width: 92vw;
   padding: 28px 24px;
   background: linear-gradient(180deg, rgba(26,10,64,0.9), rgba(10,15,34,0.95));
@@ -712,6 +713,17 @@ body::after {
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(123,44,191,0.2);
   text-align: center;
 }
+.modal-close {
+  position: absolute; top: 10px; right: 12px;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: rgba(255,255,255,0.06);
+  color: var(--text-dim); font-size: 18px; line-height: 1;
+  border-radius: 50%; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  z-index: 2;
+}
+.modal-close:hover { background: rgba(255,255,255,0.14); color: #fff; }
 .modal h2 {
   margin: 0 0 8px;
   font-size: 22px; letter-spacing: 3px;
@@ -998,6 +1010,7 @@ body::after {
   <div class="modal-mask" id="difficulty-select">
 
     <div class="modal">
+      <button class="modal-close" type="button" aria-label="关闭">✕</button>
       <h2>选择 AI 难度</h2>
       <div class="diff-list">
         <button class="diff-btn" id="diff-easy">
@@ -1022,6 +1035,7 @@ body::after {
   <!-- ========== 选择执白 / 执黑（先后手） ========== -->
   <div class="modal-mask" id="side-select">
     <div class="modal">
+      <button class="modal-close" type="button" aria-label="关闭">✕</button>
       <h2>选择先后手</h2>
       <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
       <div class="diff-list">
@@ -1581,17 +1595,14 @@ class LocalGame {
 }
 
 // ======== 路由基准（GitHub Pages 项目站点子路径自适应） ========
-// APP_BASE : 项目根绝对路径（带尾斜杠）。GitHub Pages 项目站点部署在 /moon-chess/ 子路径，
-//            本地开发 (http://localhost:3000/) 部署在域名根 '/'。
-// PAGE_FILE: 当前页面文件相对项目根的路径（含子目录），用于推导页面所在目录。
-// PAGE_DIR : 当前页面所在目录的绝对路径（带尾斜杠），退出对局时把 URL 恢复到这里，
-//            使页面内「其他模式」按钮的相对路径 (../index.html 或 index.html) 始终正确。
+// APP_BASE  : 项目根绝对路径（带尾斜杠）。GitHub Pages 项目站点 = /moon-chess/，本地 = /。
+// PAGE_FILE : 本页面相对项目根的路径（含子目录）。退出对局时把 URL 恢复为 APP_BASE+PAGE_FILE，
+//             即页面自身 URL —— 只清掉房间路径，不改变页面地址；点「其他模式」才跳到 APP_BASE。
 const APP_BASE = (() => {
   const REPO = '/moon-chess/';                      // GitHub Pages 仓库名子路径
   return location.pathname.startsWith(REPO) ? REPO : '/';
 })();
 const PAGE_FILE = 'movable/index.html';              // 本页面相对项目根的路径
-const PAGE_DIR = APP_BASE + PAGE_FILE.replace(/[^/]+$/, '');
 
 // ======== 应用控制器 ========
 
@@ -1761,6 +1772,12 @@ const App = {
     setTimeout(() => { dlg.hidden = true; }, 260);
     this._confirmCallback = null;
   },
+  // 进入对局时锁定页面滚动并回到顶端，返回菜单时恢复滚动
+  setScrollLock(locked) {
+    document.documentElement.style.overflow = locked ? 'hidden' : '';
+    document.body.style.overflow = locked ? 'hidden' : '';
+    if (locked) window.scrollTo(0, 0);
+  },
   onConfirmYes() {
     const cb = this._confirmCallback;
     this.hideConfirm();
@@ -1783,6 +1800,7 @@ const App = {
   // ==================== 菜单切换 ====================
   showMenu() {
     this.mode = 'menu';
+    this.setScrollLock(false);
     this.clearAiTimer(true);
     this.aiCandidates = [];
     this.stopAiCandidateCycle();
@@ -1825,6 +1843,7 @@ const App = {
     const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
     const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
     this.mode = 'local';
+    this.setScrollLock(true);
     this.local = new LocalGame();
     this.state = this.local.snapshot();
     this.selected = null;
@@ -2500,7 +2519,7 @@ const App = {
     this.roomCode = null;
     this.clearAiTimer(true);
     this.stopAiCandidateCycle();
-    history.replaceState(null, '', PAGE_DIR);
+    history.replaceState(null, '', APP_BASE + PAGE_FILE);
     this.showMenu();
   },
 
@@ -2823,13 +2842,23 @@ function safeGet(id) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 修正「其他模式」按钮：始终指向项目根的模式选择页
-  // （避免 exitToMenu 后 URL 基准变化导致相对路径解析到错误位置）
+  // 修正「其他模式」按钮：始终指向项目根（不带 index.html，统一为 /moon-chess/）
   document.querySelectorAll('a.btn[href]').forEach(a => {
     const href = a.getAttribute('href') || '';
     if (/(^|\/)index\.html$/.test(href)) {
-      a.setAttribute('href', APP_BASE + 'index.html');
+      a.setAttribute('href', APP_BASE);
     }
+  });
+  // 弹窗：点击遮罩框外或 X 按钮关闭
+  document.querySelectorAll('.modal-mask').forEach(mask => {
+    mask.addEventListener('click', (e) => {
+      if (e.target === mask) mask.classList.remove('show');
+    });
+  });
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.modal-mask')?.classList.remove('show');
+    });
   });
   App.init();
 });

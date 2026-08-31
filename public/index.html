@@ -103,6 +103,11 @@
 
 <script>
 (() => {
+  // 统一模式选择页路径：把 .../index.html 收敛为目录根（/moon-chess/），避免两种 URL 并存
+  const REPO = '/moon-chess/';
+  if (location.pathname.startsWith(REPO) && /(^|\/)index\.html$/.test(location.pathname)) {
+    history.replaceState(null, '', location.pathname.replace(/index\.html$/, '') + location.search + location.hash);
+  }
   const cards = [
     {
       id: 'yuanshen',
@@ -110,7 +115,7 @@
       cls: 'a',
       title: '原神原版月亮棋',
       short: '3×3 · 先连 3 子胜 · 每方最多同时 3 颗；轮到己方时己方最早子闪烁，放新子后己方最早子消失',
-      href: 'moon-chess-standalone.html',
+      href: 'standalone/',
       preview: [
         [1, 2, 0],
         [2, 1, 0],
@@ -125,7 +130,7 @@
       cls: 'b',
       title: '原版 + 可移动（4 邻）',
       short: '原神原版 UI/规则 全部保留，再追加「移动」操作：点击己方棋子选中 → 点击 4 邻空格完成移动；移动也算一次操作，同样触发闪烁→消失链',
-      href: 'movable/index.html',
+      href: 'movable/',
       preview: [
         [1, 2, 0],
         [0, 1, 2],
@@ -139,7 +144,7 @@
       cls: '',
       title: '蚀染模式（夹击染子 · 子多者胜）',
       short: '空棋盘开局；点击空格 = 放子，点击己方棋子 = 选中移动；落位时 8 向夹击染对方为己方；支持 3×3 / 4×4、对局内切 4 / 8 邻移动',
-      href: 'dye/index.html',
+      href: 'dye/',
       preview: [
         [1, 2, 2, 1],
         [2, 1, 1, 2],

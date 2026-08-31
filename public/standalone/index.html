@@ -28,11 +28,12 @@
 }
 
 html, body {
-  margin: 0; padding: 0; width: 100%; height: 100%;
+  margin: 0; padding: 0; width: 100%; min-height: 100%;
   font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
   color: var(--text);
   background: radial-gradient(ellipse at top, #1b1040 0%, var(--bg-1) 35%, var(--bg-0) 100%);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
@@ -171,22 +172,28 @@ body::after {
 /* ============ 主菜单 ============ */
 .page {
   position: relative; z-index: 5;
-  width: 100%; height: 100%;
+  width: 100%; min-height: 100vh;
   display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 16px;
+  align-items: center; justify-content: flex-start;
+  padding-top: clamp(10px, 2.5vh, 22px);
+  padding-bottom: clamp(14px, 3.5vh, 40px);
+  padding-left: 16px;
+  padding-right: 16px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .hero {
   text-align: center;
-  max-width: 480px;
-  padding: 20px;
+  max-width: 440px;
+  padding: 10px 16px;
 }
 .big-gem {
-  width: 140px; height: 140px;
-  margin: 0 auto 16px;
+  width: 88px; height: 88px;
+  margin: 0 auto 10px;
   animation: gemRotate 12s linear infinite;
-  filter: drop-shadow(0 0 30px rgba(157,78,221,0.6));
+  filter: drop-shadow(0 0 24px rgba(157,78,221,0.6));
 }
 @keyframes gemRotate {
   0% { transform: rotate(-6deg); }
@@ -196,23 +203,23 @@ body::after {
 .big-gem svg { width: 100%; height: 100%; }
 
 .hero h1 {
-  margin: 0; font-size: 42px; letter-spacing: 6px;
+  margin: 0; font-size: 30px; letter-spacing: 4px;
   background: linear-gradient(135deg, #fff 0%, var(--accent-3) 40%, var(--cool-blue) 100%);
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  text-shadow: 0 0 40px rgba(157,78,221,0.3);
+  text-shadow: 0 0 30px rgba(157,78,221,0.3);
 }
 .subtitle {
-  margin: 6px 0 14px;
+  margin: 4px 0 8px;
   color: var(--text-dim);
   letter-spacing: 3px;
-  font-size: 13px;
+  font-size: 12px;
 }
 .rules-hint {
   color: var(--text-dim);
-  font-size: 13px;
-  line-height: 1.7;
-  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 9px 12px;
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: var(--radius);
@@ -220,13 +227,91 @@ body::after {
 }
 .rules-hint b { color: var(--accent-3); }
 
+/* A 原版规则版本切换卡 */
+.ruleset-card {
+  margin-top: 10px;
+  width: 100%;
+  max-width: 460px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: var(--radius);
+  padding: 10px 12px 12px;
+  backdrop-filter: blur(8px);
+}
+.ruleset-card h3 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.ruleset-opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.ruleset-opt {
+  position: relative;
+  padding: 12px 12px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  cursor: pointer;
+  transition: all .18s ease;
+  text-align: left;
+}
+.ruleset-opt:hover {
+  border-color: rgba(199,125,255,0.4);
+  background: rgba(255,255,255,0.06);
+  transform: translateY(-1px);
+}
+.ruleset-opt.active {
+  background: linear-gradient(180deg, rgba(157,78,221,0.18), rgba(123,44,191,0.08));
+  border-color: rgba(199,125,255,0.6);
+  box-shadow: 0 0 0 1px rgba(199,125,255,0.25), 0 10px 30px rgba(123,44,191,0.2);
+}
+.ruleset-opt .t {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #fff;
+  display: flex; align-items: center; gap: 6px;
+}
+.ruleset-opt .tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(81,232,152,0.14);
+  color: #9df3c7;
+  border: 1px solid rgba(81,232,152,0.28);
+  letter-spacing: 1px;
+}
+.ruleset-opt.modern .tag {
+  background: rgba(255,225,120,0.12);
+  color: #ffe38a;
+  border-color: rgba(255,205,86,0.3);
+}
+.ruleset-opt .d {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.ruleset-opt .d b { color: var(--accent-3); font-weight: 600; }
+.ruleset-opt.modern .d b { color: #ffd37a; }
+@media (max-width: 420px) {
+  .ruleset-opts { grid-template-columns: 1fr; }
+}
+
 .menu-buttons {
-  display: flex; flex-direction: column; gap: 12px;
-  margin-top: 28px; width: 100%; max-width: 320px;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 16px; width: 100%; max-width: 320px;
 }
 
 .footer {
-  margin-top: 24px;
+  margin-top: 14px;
   color: var(--text-dim);
   font-size: 11px;
   letter-spacing: 2px;
@@ -662,6 +747,7 @@ body::after {
 .modal-mask[hidden] { display: none !important; }
 
 .modal {
+  position: relative;
   min-width: 320px; max-width: 92vw;
   padding: 28px 24px;
   background: linear-gradient(180deg, rgba(26,10,64,0.9), rgba(10,15,34,0.95));
@@ -670,6 +756,17 @@ body::after {
   box-shadow: 0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(123,44,191,0.2);
   text-align: center;
 }
+.modal-close {
+  position: absolute; top: 10px; right: 12px;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: rgba(255,255,255,0.06);
+  color: var(--text-dim); font-size: 18px; line-height: 1;
+  border-radius: 50%; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  z-index: 2;
+}
+.modal-close:hover { background: rgba(255,255,255,0.14); color: #fff; }
 .modal h2 {
   margin: 0 0 8px;
   font-size: 22px; letter-spacing: 3px;
@@ -837,10 +934,29 @@ body::after {
         </svg>
       </div>
       <h1>月蚀棋</h1>
-      <p class="subtitle">Moon Chess · 原神原版 · 先连三者胜 · 全局最多 5 颗</p>
-      <p class="rules-hint">
-        3×3 棋盘，先连成三子者胜。<b>全局棋盘最多同时有 5 颗棋子</b>：下到第 6 颗开始，<b>全局最旧</b>的那一颗会被"蚀掉"。棋盘达到 5 颗时，全局最旧那颗会<b>闪烁警告</b>——无论哪一方<b>再下一颗新子</b>，它都会立刻<b>消逝</b>。
+      <p class="subtitle" id="menuSubtitle">Moon Chess · 原神原版 · 先连三者胜 · 每方同时最多 3 颗</p>
+      <p class="rules-hint" id="menuRulesHint">
+        3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：轮到你下子时，若你已经 3 颗，那么你已经下过的<b>最早那一颗会闪烁——提醒对手"再下一颗我自己就要蚀掉它了"</b>；当你<b>放下新子</b>的那一瞬，你最早的那颗就立刻<b>消逝</b>。
       </p>
+    </div>
+
+    <!-- ========== 规则版本切换 ========== -->
+    <div class="ruleset-card" id="rulesetCard">
+      <h3>规则版本</h3>
+      <div class="ruleset-opts" id="rulesetOpts">
+        <div class="ruleset-opt classic active" data-v="classic">
+          <div class="t">原神原版 · 经典 <span class="tag">推荐原版</span></div>
+          <div class="d">
+            轮到某方<b>下子之前</b>，若该方已<b>满 3 颗</b>，则该方<b>最早的一颗先行消逝</b>，然后该方再落子（无闪烁预警，直接消失）。
+          </div>
+        </div>
+        <div class="ruleset-opt modern" data-v="modern">
+          <div class="t">原神原版 · 改进 <span class="tag">新版</span></div>
+          <div class="d">
+            某方满 3 颗后，该方<b>最早子开始闪烁</b>——提醒对手"他下一手就要蚀自己最早子了"；等他<b>放下新子后</b>，他最早的那颗才<b>消逝</b>。
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="menu-buttons">
@@ -858,8 +974,8 @@ body::after {
       </a>
     </div>
 
-    <footer class="footer">
-      <span>⚡ 先连三者胜 · 全局最多 5 颗 · 满 5 时全局最旧子闪烁 → 再落子时被蚀掉</span>
+    <footer class="footer" id="menuFooter">
+      <span>⚡ 先连三者胜 · 每方同时最多 3 颗 · 经典：回合起先手方满3颗先消最早；改进：满3方最早子闪烁→放新子后己方最早消逝</span>
     </footer>
   </section>
 
@@ -916,6 +1032,7 @@ body::after {
   <div class="modal-mask" id="difficulty-select">
 
     <div class="modal">
+      <button class="modal-close" type="button" aria-label="关闭">✕</button>
       <h2>选择 AI 难度</h2>
       <div class="diff-list">
         <button class="diff-btn" id="diff-easy">
@@ -940,6 +1057,7 @@ body::after {
   <!-- ========== 选择执白 / 执黑（先后手） ========== -->
   <div class="modal-mask" id="side-select">
     <div class="modal">
+      <button class="modal-close" type="button" aria-label="关闭">✕</button>
       <h2>选择先后手</h2>
       <p class="hint">先手：<span style="color:#ffd0ea">粉白棋</span>，开局先行；后手：<span style="color:#b6a8ff">紫蓝棋</span>，AI 先行。双方棋子颜色鲜明可辨。</p>
       <div class="diff-list">
@@ -1055,13 +1173,12 @@ body::after {
 })();
   </script>
   <script>
-// AI 算法 —— 井字棋 + 消失规则（全局最多 5 颗，超过则消失全局最旧棋子；对方执棋时自己这边最早子闪烁警告）
+// AI 算法 —— 井字棋 + 消失规则（每方最多 3 颗，轮到己方回合己方满 3 则己方最早子闪烁提醒对方；放新子后己方最早子消失）
 // 棋盘值: 0 空, 1 先手(玩家白/粉白), 2 后手(AI 默认紫蓝)
 // pieces: { 1: [{row,col},...], 2: [{row,col},...] } 每方棋子队列(FIFO,本方先后)
-// order:  [{player,row,col}, ...] 全局落子顺序（FIFO，超过 5 则 shift 最旧）
+// order:  [{player,row,col}, ...] 全局落子顺序保留（调试/一致性）
 
-const MAX_PER_SIDE = 3;       // 保留引用但 A 旧规则只使用全局 5 上限
-const MAX_GLOBAL = 5;
+const MAX_PER_SIDE = 3;
 
 function cloneBoard(board) {
   return board.map((r) => r.slice());
@@ -1092,19 +1209,38 @@ function checkWin(board) {
   return 0;
 }
 
-// 模拟一次落子（全局 ≤ 5 上限 FIFO），超过则移走全局最旧
-function simulate(board, pieces, order, row, col, player) {
+// 模拟一次落子
+//   ruleset = 'modern' (默认): 放新子后，若己方队列 > 3，消掉己方最早
+//   ruleset = 'classic':      当前玩家要落子"之前"，若该方已满 MAX，先消其最早子，再落子（回合起消）
+function simulate(board, pieces, order, row, col, player, ruleset) {
   const nb = cloneBoard(board);
   const np = clonePieces(pieces);
   const no = cloneOrder(order);
+  ruleset = ruleset || 'modern';
+
+  // CLASSIC 回合起先消：若当前 player 队列已达上限，先消自己最早一颗
+  if (ruleset === 'classic' && np[player].length >= MAX_PER_SIDE) {
+    const old = np[player].shift();
+    if (old) {
+      nb[old.row][old.col] = 0;
+      const idx = no.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
+      if (idx >= 0) no.splice(idx, 1);
+    }
+  }
+
+  // 落下新子
   nb[row][col] = player;
   np[player].push({ row, col });
   no.push({ player, row, col });
-  // 全局满 5 → 全局最旧消失
-  if (no.length > MAX_GLOBAL) {
-    const old = no.shift();
-    np[old.player].shift();
-    nb[old.row][old.col] = 0;
+
+  // MODERN 放子后消：若己方队列 > MAX，消掉己方最早
+  if (ruleset !== 'classic' && np[player].length > MAX_PER_SIDE) {
+    const old = np[player].shift();
+    if (old) {
+      nb[old.row][old.col] = 0;
+      const idx = no.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
+      if (idx >= 0) no.splice(idx, 1);
+    }
   }
   return { board: nb, pieces: np, order: no, winner: checkWin(nb) };
 }
@@ -1125,7 +1261,7 @@ function availableMoves(board) {
 //         - 看到自己能赢：70% 概率去赢（不是 100%）
 //         - 看到对手要赢：40% 概率去堵（不是 100%，故意放机会）
 //         - 其它仍然随机
-function aiEasy(board, pieces, order, aiPlayer) {
+function aiEasy(board, pieces, order, aiPlayer, ruleset) {
   const human = aiPlayer === 1 ? 2 : 1;
   const moves = availableMoves(board);
   if (moves.length === 0) return null;
@@ -1136,12 +1272,12 @@ function aiEasy(board, pieces, order, aiPlayer) {
 
   // 自己能赢吗？70% 把握
   for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
+    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer, ruleset);
     if (res.winner === aiPlayer && Math.random() < 0.70) return m;
   }
   // 对手能立刻赢吗？40% 去堵
   for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, human);
+    const res = simulate(board, pieces, order, m.row, m.col, human, ruleset);
     if (res.winner === human && Math.random() < 0.40) return m;
   }
   return moves[Math.floor(Math.random() * moves.length)];
@@ -1153,19 +1289,19 @@ function aiEasy(board, pieces, order, aiPlayer) {
 //     · 100% 立即赢
 //     · 100% 堵对手立即赢
 //     · 否则按位置权重（中心 > 角 > 边）挑个不错的 + 偶尔随机避免呆板
-function aiNormal(board, pieces, order, aiPlayer) {
+function aiNormal(board, pieces, order, aiPlayer, ruleset) {
   const human = aiPlayer === 1 ? 2 : 1;
   const moves = availableMoves(board);
   if (moves.length === 0) return null;
 
   // 立即赢
   for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer);
+    const res = simulate(board, pieces, order, m.row, m.col, aiPlayer, ruleset);
     if (res.winner === aiPlayer) return m;
   }
   // 堵对手立即赢
   for (const m of moves) {
-    const res = simulate(board, pieces, order, m.row, m.col, human);
+    const res = simulate(board, pieces, order, m.row, m.col, human, ruleset);
     if (res.winner === human) return m;
   }
 
@@ -1191,7 +1327,7 @@ function aiNormal(board, pieces, order, aiPlayer) {
 
 // ========== 难度 3: 困难（Minimax + α-β）==========
 //   完整 5 层 Minimax + αβ 剪枝 + 启发式位置评估
-function aiHard(board, pieces, order, aiPlayer, depth = 5) {
+function aiHard(board, pieces, order, aiPlayer, ruleset, depth = 5) {
   const human = aiPlayer === 1 ? 2 : 1;
   const MAX_DEPTH = depth;
 
@@ -1222,7 +1358,7 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
     if (player === aiPlayer) {
       let best = -Infinity;
       for (const m of moves) {
-        const after = simulate(b, pcs, ord, m.row, m.col, player);
+        const after = simulate(b, pcs, ord, m.row, m.col, player, ruleset);
         const v = minimax(after.board, after.pieces, after.order, human, d - 1, alpha, beta);
         best = Math.max(best, v);
         alpha = Math.max(alpha, v);
@@ -1232,7 +1368,7 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
     } else {
       let best = Infinity;
       for (const m of moves) {
-        const after = simulate(b, pcs, ord, m.row, m.col, player);
+        const after = simulate(b, pcs, ord, m.row, m.col, player, ruleset);
         const v = minimax(after.board, after.pieces, after.order, aiPlayer, d - 1, alpha, beta);
         best = Math.min(best, v);
         beta = Math.min(beta, v);
@@ -1245,12 +1381,12 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
   const currentMoves = availableMoves(board);
   // 先看立即赢
   for (const m of currentMoves) {
-    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
+    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer, ruleset);
     if (after.winner === aiPlayer) return m;
   }
   // 堵立即输
   for (const m of currentMoves) {
-    const after = simulate(board, pieces, order, m.row, m.col, human);
+    const after = simulate(board, pieces, order, m.row, m.col, human, ruleset);
     if (after.winner === human) return m;
   }
 
@@ -1260,17 +1396,17 @@ function aiHard(board, pieces, order, aiPlayer, depth = 5) {
   const candidates = currentMoves.sort(() => Math.random() - 0.5).slice(0, Math.min(5, currentMoves.length));
 
   for (const m of candidates) {
-    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer);
+    const after = simulate(board, pieces, order, m.row, m.col, aiPlayer, ruleset);
     const score = minimax(after.board, after.pieces, after.order, human, MAX_DEPTH - 1, -Infinity, Infinity);
     if (score > bestScore) { bestScore = score; bestMove = m; }
   }
   return bestMove;
 }
 
-function aiMove(board, pieces, order, aiPlayer, difficulty) {
-  if (difficulty === 'easy')   return aiEasy(board, pieces, order, aiPlayer);
-  if (difficulty === 'normal') return aiNormal(board, pieces, order, aiPlayer);
-  return aiHard(board, pieces, order, aiPlayer);
+function aiMove(board, pieces, order, aiPlayer, difficulty, ruleset) {
+  if (difficulty === 'easy')   return aiEasy(board, pieces, order, aiPlayer, ruleset);
+  if (difficulty === 'normal') return aiNormal(board, pieces, order, aiPlayer, ruleset);
+  return aiHard(board, pieces, order, aiPlayer, ruleset);
 }
 
 window.AI = { aiMove };
@@ -1297,12 +1433,12 @@ class LocalGame {
   reset() {
     this.board = Array.from({ length: 3 }, () => Array(3).fill(0));
     this.current = P1;
-    this.pieces = { 1: [], 2: [] };       // 每方棋子队列（仅用本方 FIFO 顺序，不做上限）
-    this.order  = [];                     // 全局落子顺序（上限 MAX_GLOBAL=5）
+    this.pieces = { 1: [], 2: [] };       // 每方棋子队列（本方 FIFO 顺序，上限 MAX_PER_SIDE）
+    this.order  = [];                     // 全局落子顺序保留（调试/一致性）
     this.status = 'playing';
     this.winner = 0;
     this.winLine = null;
-    this.pendingRemove = null;            // 旧规则：全局将满（==4）时，下一手会把全局最旧子冲掉 → 警告闪烁全局最旧
+    this.pendingRemove = null;            // 下一手执棋方 = this.current；若该方已满 3 → 闪烁警告该方最早子（提醒对手这步会消掉对方自己最早子）
   }
   place(row, col, player) {
     if (this.status !== 'playing') return { ok: false };
@@ -1318,15 +1454,14 @@ class LocalGame {
     let win = this._checkWin(this.board);
     let winner = win.winner, winLine = win.line;
 
-    // 全局 FIFO > 5 → 全局最旧消失
+    // 己方队列 > MAX_PER_SIDE → 己方最早子消失（放新子后触发）
     let removed = null;
-    if (this.order.length > MAX_GLOBAL) {
-      const old = this.order.shift();
-      removed = old;
-      // 从对应 pieces[player] 同步 shift 最旧
-      this.pieces[old.player].shift();
+    if (this.pieces[player].length > MAX_PER_SIDE) {
+      const old = this.pieces[player].shift();
+      removed = { ...old, player };
+      const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
+      if (idx >= 0) this.order.splice(idx, 1);
       this.board[old.row][old.col] = 0;
-      // 消失后重判胜负
       if (winner !== 0) {
         const nw = this._checkWin(this.board);
         winner = nw.winner; winLine = nw.line;
@@ -1343,17 +1478,41 @@ class LocalGame {
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    // 闪烁警告：旧规则 — 下一手落子后若 order.length 将 > MAX_GLOBAL，则会冲掉 order[0]（全局最旧）。
-    //   下一手落子前 order.length == 4 时，下一手落子 order.length → 5+1? wait MAX_GLOBAL=5 则 5 已满，第 6 手会 shift(0)。
-    //   我们当 order.length === 4（即下一手 +1 → 5，不超）order.length === 5（即下一手+1→6,会 shift order[0]）时闪烁警告 order[0] 那颗“要被冲掉的全局最旧”。
-    //   为了显示更贴合：满 5 就一直闪烁最早那颗（提醒玩家：任意一人再下棋，这颗全局最旧就消失）。
-    if (this.order.length >= MAX_GLOBAL && this.order[0]) {
-      const old = this.order[0];
-      this.pendingRemove = { player: old.player, row: old.row, col: old.col };
+    // 闪烁警告：轮到下一手执棋方时，若下一手执棋方已满 3 颗 → 闪烁警告他的最早子（提醒对手"这步走完对方自己就会消掉最早自己那颗"）
+    const oldest = this.pieces[this.current][0];
+    if (this.pieces[this.current].length >= MAX_PER_SIDE && oldest) {
+      this.pendingRemove = { player: this.current, row: oldest.row, col: oldest.col };
     } else {
       this.pendingRemove = null;
     }
     return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
+  }
+  /**
+   * CLASSIC 原神原版经典规则：回合开始（切换到当前执棋方 this.current）时调用。
+   * 若当前执棋方已满 MAX_PER_SIDE 颗棋子 → 先把该方最早一颗从棋盘上移除。
+   * 返回 { removed: {player,row,col}|null, winner:0|1|2, winLine|null }
+   */
+  turnStartPruneCurrent() {
+    if (this.status !== 'playing') return { removed: null, winner: 0, winLine: null };
+    const player = this.current;
+    if (this.pieces[player].length < MAX_PER_SIDE) return { removed: null, winner: 0, winLine: null };
+    const old = this.pieces[player].shift();
+    if (!old) return { removed: null, winner: 0, winLine: null };
+    const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
+    if (idx >= 0) this.order.splice(idx, 1);
+    this.board[old.row][old.col] = 0;
+    // 移除后重判胜负（例如对方原本连成三子，恰是本轮要消失的那颗？不会；但 current 自己的线被自己消掉，也不产生胜/负结果；总之判一次保证状态一致）
+    const nw = this._checkWin(this.board);
+    if (nw.winner !== 0) {
+      this.status = 'ended';
+      this.winner = nw.winner;
+      this.winLine = nw.winLine;
+      this.pendingRemove = null;
+      return { removed: { ...old, player }, winner: nw.winner, winLine: nw.winLine, pendingRemove: null, current: 0 };
+    }
+    // classic 不使用闪烁预警；消完之后允许当前玩家下
+    this.pendingRemove = null;
+    return { removed: { ...old, player }, winner: 0, winLine: null, pendingRemove: null, current: this.current };
   }
   _checkWin(board) {
     const lines = [
@@ -1382,6 +1541,16 @@ class LocalGame {
   }
 }
 
+// ======== 路由基准（GitHub Pages 项目站点子路径自适应） ========
+// APP_BASE  : 项目根绝对路径（带尾斜杠）。GitHub Pages 项目站点 = /moon-chess/，本地 = /。
+// PAGE_FILE : 本页面相对项目根的路径（含子目录）。退出对局时把 URL 恢复为 APP_BASE+PAGE_FILE，
+//             即页面自身 URL —— 只清掉房间路径，不改变页面地址；点「其他模式」才跳到 APP_BASE。
+const APP_BASE = (() => {
+  const REPO = '/moon-chess/';                      // GitHub Pages 仓库名子路径
+  return location.pathname.startsWith(REPO) ? REPO : '/';
+})();
+const PAGE_FILE = 'standalone/index.html';            // 本页面相对项目根的路径
+
 // ======== 应用控制器 ========
 
 const App = {
@@ -1390,6 +1559,9 @@ const App = {
   local: null,
   playerSide: 'white',          // 'white' | 'black' — 玩家选哪一方
   difficulty: 'normal',
+  // 规则版本：'classic' 原神原版经典（回合开始消新执棋方满3的最早子，直接消无闪烁）
+  //         'modern'  改进版（放新子后己方满3才消；满3时新执棋方最早子闪烁预警对方）
+  ruleset: 'classic',
 
   // 联机
   socket: null,
@@ -1424,6 +1596,41 @@ const App = {
     }, 620);
     this.visualRemoving = info;
   },
+  /**
+   * CLASSIC 模式：当前回合 (this.state.current / local.current) 玩家满 3 → 立即消自己最早子 + 淡出动画
+   * 动画完成/或直接跳过 后执行 cb。
+   */
+  _runClassicTurnStartPruneAndThen(cb) {
+    if (this.ruleset !== 'classic') return cb && cb({ pruned: false });
+    if (!this.local || !this.state) return cb && cb({ pruned: false });
+    if (this.state.status !== 'playing') return cb && cb({ pruned: false });
+
+    // 逻辑移除
+    const r = this.local.turnStartPruneCurrent();
+    this.state = this.local.snapshot();
+    this.updateRestartButton();
+    if (!r || !r.removed) {
+      this.render();
+      return cb && cb({ pruned: false });
+    }
+    // 有移除：视觉淡出 + 动画等待结束
+    this.stageRemovingVisual(r.removed);
+    this.setBoardDisabled(true);
+    this.render();
+    const that = this;
+    // 等淡出动画 (620ms) + 一点冗余
+    const t = setTimeout(() => {
+      that.setBoardDisabled(false);
+      that.updateRestartButton();
+      that.render();
+      cb && cb({ pruned: true, result: r });
+    }, 650);
+    // 挂到 visualRemoving 的 timer 替换里，也允许外部 cancel
+    if (this.visualRemoving) {
+      if (this.visualRemoving._classicPruneTimer) clearTimeout(this.visualRemoving._classicPruneTimer);
+      this.visualRemoving._classicPruneTimer = t;
+    }
+  },
   clearRemovingVisual(needRender) {
     if (this.visualRemoving && this.visualRemoving.timerId) {
       clearTimeout(this.visualRemoving.timerId);
@@ -1436,17 +1643,54 @@ const App = {
     const all = document.querySelectorAll('.cell');
     all.forEach((el) => { delete el.dataset._k; });
   },
+  // 根据 this.ruleset 同步主菜单的副标题/规则说明/页脚文字
+  applyRulesetToMenuUI() {
+    const isClassic = this.ruleset === 'classic';
+    const sub = document.getElementById('menuSubtitle');
+    const hint = document.getElementById('menuRulesHint');
+    const footer = document.getElementById('menuFooter');
+    if (isClassic) {
+      if (sub) sub.textContent = 'Moon Chess · 原神原版 · 先连三者胜 · 每方同时最多 3 颗';
+      if (hint) hint.innerHTML = '3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：轮到某方下子时，若该方<b>已满 3 颗</b>，则该方<b>最早的一颗先行消逝</b>，然后该方再落子。<b>无闪烁预警，直接消失</b>——这是原神原版经典规则。';
+      if (footer) footer.innerHTML = '<span>⚡ 先连三者胜 · 每方同时最多 3 颗 · 经典：回合起先消新执棋方满3的最早子（无闪烁，直接消失）</span>';
+    } else {
+      if (sub) sub.textContent = 'Moon Chess · 原神原版改进 · 先连三者胜 · 每方同时最多 3 颗';
+      if (hint) hint.innerHTML = '3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：某方满 3 颗后，该方<b>最早子开始闪烁</b>——提醒对手"他下一手就要蚀自己最早子了"；等他<b>放下新子后</b>，他最早的那颗才<b>消逝</b>。';
+      if (footer) footer.innerHTML = '<span>⚡ 先连三者胜 · 每方同时最多 3 颗 · 改进：满3方最早子闪烁→放新子后己方最早消逝</span>';
+    }
+  },
 
   // ==================== 初始化 ====================
   init() {
+    // 房间路径基于 APP_BASE（如 /moon-chess/r/ABC123），兼容本地 /r/ABC123
     const path = location.pathname;
-    const m = path.match(/^\/r\/([A-Z0-9]{6})$/i);
-    if (m) {
-      this.roomCode = m[1].toUpperCase();
+    const roomPrefix = APP_BASE + 'r/';
+    let code = null;
+    if (path.startsWith(roomPrefix)) {
+      const tail = path.slice(roomPrefix.length);
+      if (/^[A-Z0-9]{6}$/i.test(tail)) code = tail.toUpperCase();
+    }
+    if (code) {
+      this.roomCode = code;
       this.goOnline();
     } else {
       this.showMenu();
+      // 主菜单首次显示时同步 ruleset 视觉 + 文字
+      this.applyRulesetToMenuUI();
     }
+
+    // 规则版本切换
+    const opts = document.querySelectorAll('#rulesetOpts .ruleset-opt');
+    const that = this;
+    opts.forEach((el) => {
+      el.addEventListener('click', () => {
+        const v = el.getAttribute('data-v') || 'classic';
+        if (v !== 'classic' && v !== 'modern') return;
+        that.ruleset = v;
+        opts.forEach((o) => o.classList.toggle('active', o === el));
+        that.applyRulesetToMenuUI();
+      });
+    });
 
     // 菜单按钮
     safeGet('btn-local')?.addEventListener('click', () => this.showDifficultySelect());
@@ -1533,6 +1777,12 @@ const App = {
     setTimeout(() => { dlg.hidden = true; }, 260);
     this._confirmCallback = null;
   },
+  // 进入对局时锁定页面滚动并回到顶端，返回菜单时恢复滚动
+  setScrollLock(locked) {
+    document.documentElement.style.overflow = locked ? 'hidden' : '';
+    document.body.style.overflow = locked ? 'hidden' : '';
+    if (locked) window.scrollTo(0, 0);
+  },
   onConfirmYes() {
     const cb = this._confirmCallback;
     this.hideConfirm();
@@ -1555,6 +1805,7 @@ const App = {
   // ==================== 菜单切换 ====================
   showMenu() {
     this.mode = 'menu';
+    this.setScrollLock(false);
     this.clearAiTimer(true);
     this.aiCandidates = [];
     this.stopAiCandidateCycle();
@@ -1568,6 +1819,7 @@ const App = {
     this.hideEndBanner();
     this.rematch = { status: 'none', byHost: false, guestResponse: null };
     this.setBoardDisabled(false);
+    this.applyRulesetToMenuUI();
   },
 
   showDifficultySelect() {
@@ -1597,6 +1849,7 @@ const App = {
     const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
     const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
     this.mode = 'local';
+    this.setScrollLock(true);
     this.local = new LocalGame();
     this.state = this.local.snapshot();
     this.clearAiTimer(true);
@@ -1749,7 +2002,7 @@ const App = {
       this.roomCode = data.roomCode;
       this.mySeat = data.seat;
       this.roomPlayers = data.players;
-      history.replaceState(null, '', `/r/${this.roomCode}`);
+      history.replaceState(null, '', `${APP_BASE}r/${this.roomCode}`);
       this.updateRoomUI(data);
       this.state = data.game;
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
@@ -1762,7 +2015,7 @@ const App = {
       this.roomCode = data.roomCode;
       this.mySeat = data.seat;
       this.roomPlayers = data.players;
-      history.replaceState(null, '', `/r/${this.roomCode}`);
+      history.replaceState(null, '', `${APP_BASE}r/${this.roomCode}`);
       this.updateRoomUI(data);
       this.state = data.game;
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
@@ -1992,10 +2245,17 @@ const App = {
       this.updateRestartButton();
       this.render();
 
-      // AI 自动下（候选红圈动画 + 慢速落子）—— 推迟到下一帧，保证首帧渲染就绪
       if (this.state.status === 'playing' && this.state.current === aiPlayer) {
         const aiRef = aiPlayer;
-        setTimeout(() => this.scheduleAiMove(aiRef), 60);
+        // 经典规则：AI 的回合开始前，先执行"回合起先消新执棋方（即 AI）最早子"动画 + 状态更新
+        if (this.ruleset === 'classic') {
+          setTimeout(() => this._runClassicTurnStartPruneAndThen((pruneRes)=>{
+            if (this.state.status !== 'playing') return;
+            this.scheduleAiMove(aiRef);
+          }), 80);
+        } else {
+          setTimeout(() => this.scheduleAiMove(aiRef), 60);
+        }
       }
       return;
     }
@@ -2024,7 +2284,7 @@ const App = {
     const freezeDuration = cyclePeriod;
 
     // === 1) 计算 AI 真实着法 ===
-    const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty);
+    const move = AI.aiMove(this.local.board, this.local.pieces, this.local.order, aiPlayerNum, this.difficulty, this.ruleset);
     if (!move) {
       this.clearAiTimer(true);
       this.stopAiCandidateCycle();
@@ -2093,7 +2353,15 @@ const App = {
         if (!res) return;
         if (this.state.status === 'ended') return;
         const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
-        if (this.state.current !== humanPlayer) {
+
+        if (this.state.current === humanPlayer) {
+          // AI 下完，轮到人类了。经典规则：先跑回合起消经典（若满3），完成后允许人类点击
+          if (this.ruleset === 'classic') {
+            const that2 = this;
+            setTimeout(()=> that2._runClassicTurnStartPruneAndThen(()=>{}), 80);
+          }
+        } else {
+          // 连续 AI 回合（几乎不可能，但保险）
           this.scheduleAiMove(this.state.current);
         }
       }, freezeDuration);
@@ -2157,7 +2425,7 @@ const App = {
     this.roomCode = null;
     this.clearAiTimer(true);
     this.stopAiCandidateCycle();
-    history.replaceState(null, '', '/');
+    history.replaceState(null, '', APP_BASE + PAGE_FILE);
     this.showMenu();
   },
 
@@ -2416,7 +2684,27 @@ function safeGet(id) {
   return el || null;
 }
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+document.addEventListener('DOMContentLoaded', () => {
+  // 修正「其他模式」按钮：始终指向项目根（不带 index.html，统一为 /moon-chess/）
+  document.querySelectorAll('a.btn[href]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    if (/(^|\/)index\.html$/.test(href)) {
+      a.setAttribute('href', APP_BASE);
+    }
+  });
+  // 弹窗：点击遮罩框外或 X 按钮关闭
+  document.querySelectorAll('.modal-mask').forEach(mask => {
+    mask.addEventListener('click', (e) => {
+      if (e.target === mask) mask.classList.remove('show');
+    });
+  });
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', () => {
+      btn.closest('.modal-mask')?.classList.remove('show');
+    });
+  });
+  App.init();
+});
 
   </script>
 </body>
