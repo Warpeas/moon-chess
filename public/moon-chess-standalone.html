@@ -1444,7 +1444,7 @@ class LocalGame {
     let removed = null;
     if (this.pieces[player].length > MAX_PER_SIDE) {
       const old = this.pieces[player].shift();
-      removed = old;
+      removed = { ...old, player };
       const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
       if (idx >= 0) this.order.splice(idx, 1);
       this.board[old.row][old.col] = 0;
@@ -1494,11 +1494,11 @@ class LocalGame {
       this.winner = nw.winner;
       this.winLine = nw.winLine;
       this.pendingRemove = null;
-      return { removed: old, winner: nw.winner, winLine: nw.winLine, pendingRemove: null, current: 0 };
+      return { removed: { ...old, player }, winner: nw.winner, winLine: nw.winLine, pendingRemove: null, current: 0 };
     }
     // classic 不使用闪烁预警；消完之后允许当前玩家下
     this.pendingRemove = null;
-    return { removed: old, winner: 0, winLine: null, pendingRemove: null, current: this.current };
+    return { removed: { ...old, player }, winner: 0, winLine: null, pendingRemove: null, current: this.current };
   }
   _checkWin(board) {
     const lines = [

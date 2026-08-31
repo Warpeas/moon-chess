@@ -1427,7 +1427,7 @@ class LocalGame {
     this.status = 'playing';
     this.winner = 0;
     this.winLine = null;
-    this.pendingRemove = null;            // 轮到己方回合 & 己方满 3 → 己方最早子 = 闪烁警告（放新子后真消失）
+    this.pendingRemove = [];              // 任意一方满 3 → 该方最早子闪烁警告（双方独立，持续闪烁；放新子后己方最早子真消失）
   }
   place(row, col, player) {
     if (this.status !== 'playing') return { ok: false };
@@ -1448,7 +1448,7 @@ class LocalGame {
     let removed = null;
     if (this.pieces[player].length > MAX_PER_SIDE) {
       const old = this.pieces[player].shift();
-      removed = old;
+      removed = { ...old, player };
       // 同步从 order 移除对应最早本方棋子的首次匹配
       const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
       if (idx >= 0) this.order.splice(idx, 1);
@@ -1464,18 +1464,19 @@ class LocalGame {
       this.status = 'ended';
       this.winner = winner;
       this.winLine = winLine;
-      this.pendingRemove = null;
-      return { ok: true, removed, winner, winLine, pendingRemove: null, current: 0 };
+      this.pendingRemove = [];
+      return { ok: true, removed, winner, winLine, pendingRemove: [], current: 0 };
     }
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    // 闪烁警告：轮到对方回合 → 如果对方满 3，则对方最早子闪烁（也就是下一手执棋方自己 的最早子闪，符合你规则"轮到某一方下子时，己方最早的子不消失，只是闪烁"）
-    const oldest = this.pieces[this.current][0];
-    if (this.pieces[this.current].length >= MAX_PER_SIDE && oldest) {
-      this.pendingRemove = { player: this.current, row: oldest.row, col: oldest.col };
-    } else {
-      this.pendingRemove = null;
+    // 闪烁警告：任意一方满 3 → 该方最早子闪烁（双方独立判断，持续闪烁；放新子后该方最早子真消失）
+    this.pendingRemove = [];
+    for (const p of [P1, P2]) {
+      if (this.pieces[p].length >= MAX_PER_SIDE) {
+        const oldest = this.pieces[p][0];
+        if (oldest) this.pendingRemove.push({ player: p, row: oldest.row, col: oldest.col });
+      }
     }
     return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
   }
@@ -1522,7 +1523,7 @@ class LocalGame {
     let removed = null;
     if (this.pieces[player].length > MAX_PER_SIDE) {
       const old = this.pieces[player].shift();
-      removed = old;
+      removed = { ...old, player };
       const idx = this.order.findIndex(o => o.player === player && o.row === old.row && o.col === old.col);
       if (idx >= 0) this.order.splice(idx, 1);
       this.board[old.row][old.col] = 0;
@@ -1536,17 +1537,19 @@ class LocalGame {
       this.status = 'ended';
       this.winner = winner;
       this.winLine = winLine;
-      this.pendingRemove = null;
-      return { ok: true, removed, winner, winLine, pendingRemove: null, current: 0 };
+      this.pendingRemove = [];
+      return { ok: true, removed, winner, winLine, pendingRemove: [], current: 0 };
     }
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    const oldest = this.pieces[this.current][0];
-    if (this.pieces[this.current].length >= MAX_PER_SIDE && oldest) {
-      this.pendingRemove = { player: this.current, row: oldest.row, col: oldest.col };
-    } else {
-      this.pendingRemove = null;
+    // 闪烁警告：任意一方满 3 → 该方最早子闪烁（双方独立判断，持续闪烁；操作后该方最早子真消失）
+    this.pendingRemove = [];
+    for (const p of [P1, P2]) {
+      if (this.pieces[p].length >= MAX_PER_SIDE) {
+        const oldest = this.pieces[p][0];
+        if (oldest) this.pendingRemove.push({ player: p, row: oldest.row, col: oldest.col });
+      }
     }
     return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
   }
@@ -2492,6 +2495,10 @@ const App = {
     if (!this.state) return;
 
     const pendingRemove = this.state.pendingRemove;
+    const fadingKeys = new Set();
+    if (Array.isArray(pendingRemove)) {
+      for (const p of pendingRemove) fadingKeys.add(`${p.row}-${p.col}`);
+    }
     const visualR = this.visualRemoving;
     const slide = this.visualSlide;
 
@@ -2537,7 +2544,7 @@ const App = {
       let key;
       if (v !== 0 || isSlideFrom) {
         const player = v !== 0 ? v : slide.player;
-        const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
+        const isFading = fadingKeys.has(k);
         const isSel = (selKey === k) || (slide && isSlideFrom) || aiSelHere;
         key = 'p' + player + (isFading ? 'F' : '') + (isSel ? 'S' : '') + (aiSelHere ? 'AIS' : '');
         if (isSlideFrom) key += 'sF';
@@ -2573,7 +2580,7 @@ const App = {
         const player = v !== 0 ? v : slide.player;
         const piece = document.createElement('div');
         piece.className = 'piece p' + player;
-        const isFading = (pendingRemove && pendingRemove.row === row && pendingRemove.col === col);
+        const isFading = fadingKeys.has(k);
         if (isFading) piece.classList.add('fading');
         const isSel = (selKey === k) || isSlideFrom;
         if (isSel) piece.classList.add('selected');
