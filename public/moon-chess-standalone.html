@@ -1527,6 +1527,19 @@ class LocalGame {
   }
 }
 
+// ======== 路由基准（GitHub Pages 项目站点子路径自适应） ========
+// APP_BASE : 项目根绝对路径（带尾斜杠）。GitHub Pages 项目站点部署在 /moon-chess/ 子路径，
+//            本地开发 (http://localhost:3000/) 部署在域名根 '/'。
+// PAGE_FILE: 当前页面文件相对项目根的路径（含子目录），用于推导页面所在目录。
+// PAGE_DIR : 当前页面所在目录的绝对路径（带尾斜杠），退出对局时把 URL 恢复到这里，
+//            使页面内「其他模式」按钮的相对路径 (../index.html 或 index.html) 始终正确。
+const APP_BASE = (() => {
+  const REPO = '/moon-chess/';                      // GitHub Pages 仓库名子路径
+  return location.pathname.startsWith(REPO) ? REPO : '/';
+})();
+const PAGE_FILE = 'moon-chess-standalone.html';     // 本页面相对项目根的路径
+const PAGE_DIR = APP_BASE + PAGE_FILE.replace(/[^/]+$/, '');
+
 // ======== 应用控制器 ========
 
 const App = {
@@ -1638,10 +1651,16 @@ const App = {
 
   // ==================== 初始化 ====================
   init() {
+    // 房间路径基于 APP_BASE（如 /moon-chess/r/ABC123），兼容本地 /r/ABC123
     const path = location.pathname;
-    const m = path.match(/^\/r\/([A-Z0-9]{6})$/i);
-    if (m) {
-      this.roomCode = m[1].toUpperCase();
+    const roomPrefix = APP_BASE + 'r/';
+    let code = null;
+    if (path.startsWith(roomPrefix)) {
+      const tail = path.slice(roomPrefix.length);
+      if (/^[A-Z0-9]{6}$/i.test(tail)) code = tail.toUpperCase();
+    }
+    if (code) {
+      this.roomCode = code;
       this.goOnline();
     } else {
       this.showMenu();
@@ -1964,7 +1983,7 @@ const App = {
       this.roomCode = data.roomCode;
       this.mySeat = data.seat;
       this.roomPlayers = data.players;
-      history.replaceState(null, '', `/r/${this.roomCode}`);
+      history.replaceState(null, '', `${APP_BASE}r/${this.roomCode}`);
       this.updateRoomUI(data);
       this.state = data.game;
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
@@ -1977,7 +1996,7 @@ const App = {
       this.roomCode = data.roomCode;
       this.mySeat = data.seat;
       this.roomPlayers = data.players;
-      history.replaceState(null, '', `/r/${this.roomCode}`);
+      history.replaceState(null, '', `${APP_BASE}r/${this.roomCode}`);
       this.updateRoomUI(data);
       this.state = data.game;
       this.rematch = { status: 'none', byHost: false, guestResponse: null };
@@ -2387,7 +2406,7 @@ const App = {
     this.roomCode = null;
     this.clearAiTimer(true);
     this.stopAiCandidateCycle();
-    history.replaceState(null, '', '/');
+    history.replaceState(null, '', PAGE_DIR);
     this.showMenu();
   },
 
@@ -2646,7 +2665,17 @@ function safeGet(id) {
   return el || null;
 }
 
-document.addEventListener('DOMContentLoaded', () => App.init());
+document.addEventListener('DOMContentLoaded', () => {
+  // 修正「其他模式」按钮：始终指向项目根的模式选择页
+  // （避免 exitToMenu 后 URL 基准变化导致相对路径解析到错误位置）
+  document.querySelectorAll('a.btn[href]').forEach(a => {
+    const href = a.getAttribute('href') || '';
+    if (/(^|\/)index\.html$/.test(href)) {
+      a.setAttribute('href', APP_BASE + 'index.html');
+    }
+  });
+  App.init();
+});
 
   </script>
 </body>
