@@ -1438,7 +1438,7 @@ class LocalGame {
     this.status = 'playing';
     this.winner = 0;
     this.winLine = null;
-    this.pendingRemove = null;            // 下一手执棋方 = this.current；若该方已满 3 → 闪烁警告该方最早子（提醒对手这步会消掉对方自己最早子）
+    this.pendingRemove = null;            // 任意一方达到 MAX → 该方最早子闪烁预告（回合对方思考期间看到警告；下一手自己落子后/回合开始时消掉）
   }
   place(row, col, player) {
     if (this.status !== 'playing') return { ok: false };
@@ -1478,12 +1478,19 @@ class LocalGame {
 
     const next = this.current === P1 ? P2 : P1;
     this.current = next;
-    // 闪烁警告：轮到下一手执棋方时，若下一手执棋方已满 3 颗 → 闪烁警告他的最早子（提醒对手"这步走完对方自己就会消掉最早自己那颗"）
-    const oldest = this.pieces[this.current][0];
-    if (this.pieces[this.current].length >= MAX_PER_SIDE && oldest) {
-      this.pendingRemove = { player: this.current, row: oldest.row, col: oldest.col };
-    } else {
-      this.pendingRemove = null;
+    // 闪烁预告：**双方各自**若已达 MAX 颗，则最早一颗闪烁（提醒对手「他下一手/我下一手就会蚀掉最早子」）。
+    // 优先显示「刚下完的一方」的警告（因为现在是对方在思考，他最需要看到这条预告）；
+    // 若刚下完这方没到 3，则看下一执棋方是否满 3，也让对方看到预告。
+    const justPlayed = this.current === P1 ? P2 : P1;
+    this.pendingRemove = null;
+    for (const side of [justPlayed, this.current]) {
+      if (this.pieces[side].length >= MAX_PER_SIDE) {
+        const old = this.pieces[side][0];
+        if (old) {
+          this.pendingRemove = { player: side, row: old.row, col: old.col };
+          break;
+        }
+      }
     }
     return { ok: true, removed, winner: 0, winLine: null, pendingRemove: this.pendingRemove, current: this.current };
   }
