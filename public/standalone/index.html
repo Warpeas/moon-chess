@@ -855,8 +855,15 @@ body::after {
 
 /* ============ 竖屏适配 ============ */
 @media (max-width: 480px) {
-  .hero h1 { font-size: 36px; }
-  .big-gem { width: 110px; height: 110px; }
+  .hero h1 { font-size: 28px; letter-spacing: 3px; }
+  .big-gem { width: 76px; height: 76px; margin-bottom: 6px; }
+  .subtitle { margin: 2px 0 6px; font-size: 11px; letter-spacing: 1.5px; }
+  .rules-hint { padding: 7px 10px; font-size: 11px; margin-bottom: 6px; line-height: 1.45; }
+  .ruleset-card { margin-top: 6px; padding: 8px 10px 10px; }
+  .ruleset-card h3 { font-size: 10.5px; margin-bottom: 4px; letter-spacing: 1.5px; }
+  .ruleset-opt { padding: 8px 10px; }
+  .ruleset-opt .t { font-size: 13px; }
+  .ruleset-opt .d { font-size: 10.5px; }
   .board { width: min(88vw, 420px); height: min(88vw, 420px); padding: 8px; gap: 2px; border-radius: 18px; }
   .cell { border-radius: 10px; }
   .turn-indicator { font-size: 14px; padding: 8px 14px; letter-spacing: 1px; }
@@ -869,13 +876,18 @@ body::after {
 /* ============ 横屏适配 ============ */
 @media (orientation: landscape) and (max-height: 540px) {
   .page { justify-content: flex-start; padding-top: 10px; }
-  .hero { padding: 10px; max-width: 420px; }
-  .hero h1 { font-size: 30px; }
-  .big-gem { width: 90px; height: 90px; margin-bottom: 8px; }
-  .subtitle { margin: 2px 0 8px; }
-  .rules-hint { padding: 8px 10px; font-size: 11px; margin-bottom: 8px; }
-  .menu-buttons { margin-top: 14px; gap: 8px; max-width: 260px; }
-  .btn { padding: 10px 16px; font-size: 13px; }
+  .hero { padding: 6px 10px; max-width: 380px; }
+  .hero h1 { font-size: 26px; letter-spacing: 3px; }
+  .big-gem { width: 68px; height: 68px; margin-bottom: 6px; }
+  .subtitle { margin: 2px 0 6px; font-size: 10.5px; }
+  .rules-hint { padding: 6px 10px; font-size: 10.5px; margin-bottom: 6px; }
+  .ruleset-card { margin-top: 4px; padding: 6px 10px 8px; }
+  .ruleset-card h3 { font-size: 10px; margin-bottom: 3px; }
+  .ruleset-opt { padding: 7px 10px; }
+  .ruleset-opt .t { font-size: 12px; }
+  .ruleset-opt .d { font-size: 10px; }
+  .menu-buttons { margin-top: 10px; gap: 8px; max-width: 260px; }
+  .btn { padding: 9px 14px; font-size: 13px; }
   .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
   .game-wrap { gap: 12px; }
   .game-header { padding: 4px 8px; }
@@ -885,8 +897,8 @@ body::after {
 @media (min-width: 1024px) {
   .menu-buttons { max-width: 340px; }
   .board { width: 440px; height: 440px; }
-  .big-gem { width: 160px; height: 160px; }
-  .hero h1 { font-size: 52px; }
+  .big-gem { width: 110px; height: 110px; }
+  .hero h1 { font-size: 40px; }
 }
 
 /* 隐藏 scrollbar */
@@ -934,9 +946,9 @@ body::after {
         </svg>
       </div>
       <h1>月蚀棋</h1>
-      <p class="subtitle" id="menuSubtitle">Moon Chess · 原神原版 · 先连三者胜 · 每方同时最多 3 颗</p>
+      <p class="subtitle" id="menuSubtitle">Moon Chess · 原神原版 · 先连三者胜 · 每方上限 3 子</p>
       <p class="rules-hint" id="menuRulesHint">
-        3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：轮到你下子时，若你已经 3 颗，那么你已经下过的<b>最早那一颗会闪烁——提醒对手"再下一颗我自己就要蚀掉它了"</b>；当你<b>放下新子</b>的那一瞬，你最早的那颗就立刻<b>消逝</b>。
+        横/竖/斜<b>三子连线胜</b>。每方同时最多 <b>3 子</b>，下子时若已达上限，<b>己方最早子消逝</b>。
       </p>
     </div>
 
@@ -945,16 +957,12 @@ body::after {
       <h3>规则版本</h3>
       <div class="ruleset-opts" id="rulesetOpts">
         <div class="ruleset-opt classic active" data-v="classic">
-          <div class="t">原神原版 · 经典 <span class="tag">推荐原版</span></div>
-          <div class="d">
-            轮到某方<b>下子之前</b>，若该方已<b>满 3 颗</b>，则该方<b>最早的一颗先行消逝</b>，然后该方再落子（无闪烁预警，直接消失）。
-          </div>
+          <div class="t">经典 <span class="tag">原版</span></div>
+          <div class="d">回合开始：<b>新执棋方满 3 先消最早子</b>，再落子。</div>
         </div>
         <div class="ruleset-opt modern" data-v="modern">
-          <div class="t">原神原版 · 改进 <span class="tag">新版</span></div>
-          <div class="d">
-            某方满 3 颗后，该方<b>最早子开始闪烁</b>——提醒对手"他下一手就要蚀自己最早子了"；等他<b>放下新子后</b>，他最早的那颗才<b>消逝</b>。
-          </div>
+          <div class="t">改进 <span class="tag">新</span></div>
+          <div class="d">满 3 方<b>最早子闪烁预警</b>，落子后才消己方最早。</div>
         </div>
       </div>
     </div>
@@ -1668,13 +1676,13 @@ const App = {
     const hint = document.getElementById('menuRulesHint');
     const footer = document.getElementById('menuFooter');
     if (isClassic) {
-      if (sub) sub.textContent = 'Moon Chess · 原神原版 · 先连三者胜 · 每方同时最多 3 颗';
-      if (hint) hint.innerHTML = '3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：轮到某方下子时，若该方<b>已满 3 颗</b>，则该方<b>最早的一颗先行消逝</b>，然后该方再落子。<b>无闪烁预警，直接消失</b>——这是原神原版经典规则。';
-      if (footer) footer.innerHTML = '<span>⚡ 先连三者胜 · 每方同时最多 3 颗 · 经典：回合起先消新执棋方满3的最早子（无闪烁，直接消失）</span>';
+      if (sub) sub.textContent = 'Moon Chess · 原神原版 · 先连三者胜 · 每方上限 3 子';
+      if (hint) hint.innerHTML = '横/竖/斜<b>三子连线胜</b>。每方同时最多 <b>3 子</b>；回合开始时，<b>新执棋方满 3 先消最早子</b>，再落子。';
+      if (footer) footer.innerHTML = '<span>⚡ 连三胜 · 每方 3 子上限 · 经典：回合起先消新执棋方最早子</span>';
     } else {
-      if (sub) sub.textContent = 'Moon Chess · 原神原版改进 · 先连三者胜 · 每方同时最多 3 颗';
-      if (hint) hint.innerHTML = '3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>：某方满 3 颗后，该方<b>最早子开始闪烁</b>——提醒对手"他下一手就要蚀自己最早子了"；等他<b>放下新子后</b>，他最早的那颗才<b>消逝</b>。';
-      if (footer) footer.innerHTML = '<span>⚡ 先连三者胜 · 每方同时最多 3 颗 · 改进：满3方最早子闪烁→放新子后己方最早消逝</span>';
+      if (sub) sub.textContent = 'Moon Chess · 原神原版改进 · 先连三者胜 · 每方上限 3 子';
+      if (hint) hint.innerHTML = '横/竖/斜<b>三子连线胜</b>。每方同时最多 <b>3 子</b>；满 3 方<b>最早子闪烁预警</b>，放新子后消己方最早。';
+      if (footer) footer.innerHTML = '<span>⚡ 连三胜 · 每方 3 子上限 · 改进：满3方最早子闪烁→落子后消最早</span>';
     }
   },
 

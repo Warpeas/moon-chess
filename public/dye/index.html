@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="zh-CN">
-<head> charset="UTF-8" />
+<head>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="theme-color" content="#0d1b2a" />
   <title>蚀染模式 · Moon Chess Eclipse Dye</title>
@@ -777,8 +778,14 @@ body::after {
 
 /* ============ 竖屏适配 ============ */
 @media (max-width: 480px) {
-  .hero h1 { font-size: 36px; }
-  .big-gem { width: 110px; height: 110px; }
+  .hero h1 { font-size: 28px; letter-spacing: 3px; }
+  .big-gem { width: 76px; height: 76px; margin-bottom: 6px; }
+  .subtitle { margin: 2px 0 6px; font-size: 11px; letter-spacing: 1.5px; }
+  .rules-hint { padding: 7px 10px; font-size: 11px; margin-bottom: 6px; line-height: 1.45; }
+  .dye-card { padding: 8px 10px; margin-bottom: 6px; }
+  .dye-card h2 { font-size: 12px; margin: 0 0 6px; }
+  .dye-opt { padding: 7px 8px; font-size: 12px; }
+  .dye-wrap { padding: 2px 8px 8px; }
   .board { width: min(88vw, 420px); height: min(88vw, 420px); padding: 8px; gap: 2px; border-radius: 18px; }
   .cell { border-radius: 10px; }
   .turn-indicator { font-size: 14px; padding: 8px 14px; letter-spacing: 1px; }
@@ -791,13 +798,17 @@ body::after {
 /* ============ 横屏适配 ============ */
 @media (orientation: landscape) and (max-height: 540px) {
   .page { justify-content: flex-start; padding-top: 10px; }
-  .hero { padding: 10px; max-width: 420px; }
-  .hero h1 { font-size: 30px; }
-  .big-gem { width: 90px; height: 90px; margin-bottom: 8px; }
-  .subtitle { margin: 2px 0 8px; }
-  .rules-hint { padding: 8px 10px; font-size: 11px; margin-bottom: 8px; }
-  .menu-buttons { margin-top: 14px; gap: 8px; max-width: 260px; }
-  .btn { padding: 10px 16px; font-size: 13px; }
+  .hero { padding: 6px 10px; max-width: 380px; }
+  .hero h1 { font-size: 26px; letter-spacing: 3px; }
+  .big-gem { width: 68px; height: 68px; margin-bottom: 6px; }
+  .subtitle { margin: 2px 0 6px; }
+  .rules-hint { padding: 6px 10px; font-size: 10.5px; margin-bottom: 6px; }
+  .dye-wrap { padding: 2px 8px 8px; }
+  .dye-card { padding: 7px 10px; margin-bottom: 5px; }
+  .dye-card h2 { font-size: 11px; margin: 0 0 5px; }
+  .dye-opt { padding: 6px 8px; font-size: 12px; }
+  .menu-buttons { margin-top: 10px; gap: 8px; max-width: 260px; }
+  .btn { padding: 9px 14px; font-size: 13px; }
   .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
   .game-wrap { gap: 12px; }
   .game-header { padding: 4px 8px; }
@@ -806,9 +817,9 @@ body::after {
 /* ============ 桌面大屏 ============ */
 @media (min-width: 1024px) {
   .menu-buttons { max-width: 340px; }
-  .board { width: 440px; height: 440px; }
-  .big-gem { width: 160px; height: 160px; }
-  .hero h1 { font-size: 52px; }
+  .dye-board { width: 440px; }
+  .big-gem { width: 100px; height: 100px; }
+  .hero h1 { font-size: 36px; }
 }
 
 /* 隐藏 scrollbar */
@@ -838,46 +849,88 @@ body::after {
 
 .dye-hint { font-size: 12px; color: #b6addd; margin: 8px 0 10px; min-height: 16px; }
 .dye-board {
-  width: 100%; max-width: 440px; margin: 0 auto; aspect-ratio: 1 / 1;
-  background: linear-gradient(135deg, #1e1a36 0%, #251f43 100%);
-  border: 1px solid rgba(120,105,220,.45);
-  border-radius: 16px; padding: 8px; display: grid; gap: 6px;
-  box-shadow: inset 0 0 30px rgba(0,0,0,.4), 0 14px 30px rgba(0,0,0,.4);
+  width: min(82vw, 480px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  display: grid;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    radial-gradient(circle at center, rgba(157,78,221,0.18), transparent 70%);
+  border: 1px solid rgba(200,220,255,0.15);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 30px 80px rgba(0,0,0,0.6),
+    0 0 60px rgba(76,201,240,0.08),
+    0 0 80px rgba(157,78,221,0.12);
 }
 .dye-cell {
-  position: relative; border-radius: 10px;
-  background: linear-gradient(180deg, #2a2452, #1f1b3e);
-  border: 1px solid rgba(125,110,200,.28);
+  position: relative;
+  border-radius: 14px;
+  background: transparent;
+  cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: all .15s ease; user-select: none;
+  transition: background 0.15s, box-shadow 0.15s;
+  user-select: none;
+}
+.dye-cell:hover {
+  background: rgba(200, 220, 255, 0.12);
 }
 .dye-cell.place-hint::after {
   content: ''; position: absolute; inset: 25%; border-radius: 50%;
-  border: 2px dashed rgba(255,255,255,.18);
+  border: 2px dashed rgba(255,255,255,.2);
 }
 .dye-cell.move-hint::after {
-  content: ''; position: absolute; inset: 18%; border-radius: 10px;
-  border: 2px dashed rgba(122,220,170,.55);
-  background: rgba(81,232,152,.08);
+  content: ''; position: absolute; inset: 18%; border-radius: 12px;
+  border: 2px dashed rgba(122,220,170,.6);
+  background: rgba(81,232,152,.1);
 }
-.dye-cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.25); }
+.dye-cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.3); }
 .dye-cell.flipping { animation: dyeFlip 500ms ease; }
 @keyframes dyeFlip { 0%{transform:scale(1);} 30%{transform:scale(.4);opacity:.55;} 60%{transform:scale(.4);opacity:.55;} 100%{transform:scale(1);} }
-.dye-cell.disabled { cursor: not-allowed; }
+.dye-cell.disabled { cursor: not-allowed; pointer-events: none; }
 .dye-cell.ending::after {
-  content: ''; position: absolute; inset: 12%; border-radius: 8px;
-  background: linear-gradient(180deg, rgba(81,232,152,.2), rgba(81,232,152,0));
+  content: ''; position: absolute; inset: 12%; border-radius: 10px;
+  background: linear-gradient(180deg, rgba(81,232,152,.22), rgba(81,232,152,0));
   border: 2px solid rgba(81,232,152,.6);
   animation: dyeWinPulse .9s ease-in-out infinite;
 }
 @keyframes dyeWinPulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.05);} }
 .dye-piece {
-  width: 70%; height: 70%; border-radius: 50%; position: relative; z-index: 1;
+  width: 72%; height: 72%;
+  border-radius: 50%;
+  position: relative; z-index: 1;
   animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1);
 }
 @keyframes dyeDrop { from { transform: translateY(-6px) scale(.6); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
-.dye-piece.p1 { background: radial-gradient(circle at 30% 30%, #ffffff 0%, #ffd9ee 60%, #ff78c8 100%); box-shadow: 0 6px 14px rgba(0,0,0,.45), 0 0 12px rgba(255,120,200,.45); }
-.dye-piece.p2 { background: radial-gradient(circle at 30% 30%, #e5f2ff 0%, #6e65ff 60%, #8cc6ff 100%); box-shadow: 0 6px 14px rgba(0,0,0,.5), 0 0 12px rgba(140,198,255,.45); }
+.dye-piece.p1 {
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #ffe6f4 40%, #ffb3d9 70%, #f77ac0 100%);
+  box-shadow:
+    inset 0 -4px 8px rgba(200,80,150,0.25),
+    inset 0 2px 3px rgba(255,255,255,0.6),
+    0 8px 18px rgba(0,0,0,0.5),
+    0 0 14px rgba(255,140,210,0.55);
+  animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1), dyePulseP1 2.2s ease-in-out infinite;
+}
+.dye-piece.p2 {
+  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #cfe0ff 38%, #7b70ff 72%, #4c8dff 100%);
+  box-shadow:
+    inset 0 -4px 8px rgba(60,80,200,0.3),
+    inset 0 2px 3px rgba(255,255,255,0.55),
+    0 8px 18px rgba(0,0,0,0.55),
+    0 0 14px rgba(120,160,255,0.55);
+  animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1), dyePulseP2 2.4s ease-in-out infinite;
+}
+@keyframes dyePulseP1 {
+  0%,100% { filter: drop-shadow(0 0 4px rgba(255,150,210,0.45)); }
+  50% { filter: drop-shadow(0 0 16px rgba(198,150,255,0.82)); }
+}
+@keyframes dyePulseP2 {
+  0%,100% { filter: drop-shadow(0 0 4px rgba(110,92,255,0.45)); }
+  50% { filter: drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
+}
 .dye-piece.sliding { animation: dyeSlide 320ms cubic-bezier(.25,1.4,.5,1) both; }
 @keyframes dyeSlide {
   from { transform: translate(calc(var(--dx,0) * -100%), calc(var(--dy,0) * -100%)); opacity: .55; }
@@ -947,7 +1000,7 @@ body::after {
       <h1>蚀染模式</h1>
       <p class="subtitle">Moon Chess · Eclipse Dye · 夹击染子 · 子多者胜</p>
       <p class="rules-hint">
-        空棋盘开局，每回合 <b>放子</b> 或 <b>移动</b> 二选一；落位时按 8 方向检查「己方→对方连续→己方」夹击，命中则中间所有对方棋子<b>被染为己方</b>。<b>移动方向 4 邻 / 8 邻 可切换（对局内也能改）</b>，支持 <b>3×3 与 4×4</b> 棋盘。结束：棋盘占满 / 当前方无任何动作 → <b>子数多者胜</b>。
+        空棋盘开局，回合 <b>放子 / 移动</b> 二选一；夹击（己方-对方连-己方）即<b>染子</b>；棋盘占满 / 无可动作时<b>子数多者胜</b>。
       </p>
     </div>
 
@@ -1008,27 +1061,22 @@ body::after {
     <section id="game" class="page">
     <div class="dye-wrap">
       <div class="game-header">
-        <div class="title-group">
-          <div class="game-title-small">🌘 蚀染模式对局</div>
-          <div id="turn-indicator" class="turn-indicator">你的回合</div>
-        </div>
-        <div class="action-group">
-          <button class="top-btn" id="btnExitToMenu" title="返回设置">← 设置</button>
-          <button class="top-btn" id="btnRestart" title="再来一局">↻ 重开</button>
-          <button class="top-btn" id="btnInGameMoveK" title="切换 4/8 邻移动范围">🧭 移动：4 邻</button>
+        <div id="turn-indicator" class="turn-indicator">你的回合</div>
+        <div class="game-actions">
+          <button class="btn btn-ghost btn-small" id="btnExitToMenu" title="返回设置">← 设置</button>
+          <button class="btn btn-ghost btn-small" id="btnRestart" title="再来一局">↻ 重开</button>
+          <button class="btn btn-ghost btn-small" id="btnInGameMoveK" title="切换 4/8 邻移动范围">🧭 4 邻</button>
         </div>
       </div>
 
-      <div style="display:flex;gap:14px;justify-content:center;margin:10px 0 12px">
+      <div style="display:flex;gap:14px;justify-content:center;margin:6px 0 8px">
         <div class="dye-count p1"><span class="dot"></span><span id="p1Count">0</span> 粉白</div>
         <div class="dye-count p2"><span class="dot"></span><span id="p2Count">0</span> 紫蓝</div>
       </div>
 
-      <div style="display:flex;gap:8px;justify-content:center;margin-bottom:10px;color:#b6addd;font-size:12px">
-        <div class="dye-chip" id="ruleChip">规则：子多者胜 · 4×4 · 4 邻移动 · 空棋盘开局</div>
-      </div>
+      <div class="dye-chip" id="ruleChip">子多者胜 · 4 邻移动 · 夹击染子 · 空棋盘开局</div>
 
-      <div class="dye-hint" id="hint">点空格放置己方棋子</div>
+      <div class="dye-hint" id="hint">点击空格放置棋子，或点击棋子选中后移动</div>
 
       <div class="dye-board" id="board"></div>
 
@@ -1039,9 +1087,6 @@ body::after {
           <button id="btnBannerRestart">再来一局</button>
         </div>
       </div>
-
-      <div style="height:14px"></div>
-      <div class="dye-card dye-legend" id="gameLegend"></div>
     </div>
   </section>
 
@@ -1244,7 +1289,7 @@ window.__moon_chess_showOnlineTip = function() {
 
   function syncInGameMoveBtn(){
     if(!cfg) return;
-    document.getElementById('btnInGameMoveK').textContent = `🧭 移动：${cfg.moveK} 邻`;
+    document.getElementById('btnInGameMoveK').textContent = `🧭 ${cfg.moveK} 邻`;
   }
 
   // ======================= Constants =======================
@@ -1293,9 +1338,7 @@ window.__moon_chess_showOnlineTip = function() {
     const me = parseInt(activeVal('sideOpts'),10);
     SIZE = size;
     cfg = { size, moveK, diff, me };
-    document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${size}×${size} · ${moveK}邻移动 · 不消失 · 空棋盘开局`;
-    document.getElementById('gameLegend').innerHTML =
-      `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${moveK} 邻（对局内可切换）。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+    document.getElementById('ruleChip').textContent = `${size}×${size} · 子多者胜 · ${moveK}邻移动 · 夹击染子`;
     const sub = document.querySelector('#setup .sub');
     if (sub) sub.textContent = `${size}×${size} · 空棋盘开局 · 放置/移动均可 · 夹击染子（可选是否触发） · 子多者胜`;
     document.getElementById('menu').classList.remove('show');
@@ -1332,9 +1375,7 @@ window.__moon_chess_showOnlineTip = function() {
       if(moveNeighbors(movingSel.r, movingSel.c, cfg.moveK).length===0) movingSel = null;
     }
     if(game && cfg){
-      document.getElementById('ruleChip').textContent = `规则: 子多者胜 · ${cfg.size}×${cfg.size} · ${cfg.moveK}邻移动 · 不消失 · 空棋盘开局`;
-      document.getElementById('gameLegend').innerHTML =
-        `<b>胜利：</b>棋盘占满 / 当前方既没空格可放又没棋可动 → <b>子数多者胜</b>。<b>移动：</b>${cfg.moveK} 邻（对局内可切换）。<b>夹击染子：</b>落位时触发则翻，不触发也不算犯规。棋子不消失、不设回合上限。`;
+      document.getElementById('ruleChip').textContent = `${cfg.size}×${cfg.size} · 子多者胜 · ${cfg.moveK}邻移动 · 夹击染子`;
     }
     (syncInGameMoveBtn && syncInGameMoveBtn());
     if(game) render();
@@ -1575,9 +1616,9 @@ window.__moon_chess_showOnlineTip = function() {
     if (game.status !== 'playing') {
       hint.textContent = '对局结束';
     } else if (aiThinking) {
-      hint.textContent = 'AI 思考中…';
+      hint.textContent = '';   // 回合指示器（顶部胶囊）已显示"AI 思考中 (颜色)"，这里不重复
     } else if (game.current !== cfg.me) {
-      hint.textContent = '等待对方…';
+      hint.textContent = '';   // 同上，回合指示器已显示颜色信息
     } else {
       const hasAny = (listAllActions(cfg.me).length > 0);
       if (!hasAny) {

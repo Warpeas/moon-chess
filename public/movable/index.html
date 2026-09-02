@@ -812,8 +812,10 @@ body::after {
 
 /* ============ 竖屏适配 ============ */
 @media (max-width: 480px) {
-  .hero h1 { font-size: 36px; }
-  .big-gem { width: 110px; height: 110px; }
+  .hero h1 { font-size: 28px; letter-spacing: 3px; }
+  .big-gem { width: 76px; height: 76px; margin-bottom: 6px; }
+  .subtitle { margin: 2px 0 6px; font-size: 11px; letter-spacing: 1.5px; }
+  .rules-hint { padding: 7px 10px; font-size: 11px; margin-bottom: 6px; line-height: 1.45; }
   .board { width: min(88vw, 420px); height: min(88vw, 420px); padding: 8px; gap: 2px; border-radius: 18px; }
   .cell { border-radius: 10px; }
   .turn-indicator { font-size: 14px; padding: 8px 14px; letter-spacing: 1px; }
@@ -826,13 +828,13 @@ body::after {
 /* ============ 横屏适配 ============ */
 @media (orientation: landscape) and (max-height: 540px) {
   .page { justify-content: flex-start; padding-top: 10px; }
-  .hero { padding: 10px; max-width: 420px; }
-  .hero h1 { font-size: 30px; }
-  .big-gem { width: 90px; height: 90px; margin-bottom: 8px; }
-  .subtitle { margin: 2px 0 8px; }
-  .rules-hint { padding: 8px 10px; font-size: 11px; margin-bottom: 8px; }
-  .menu-buttons { margin-top: 14px; gap: 8px; max-width: 260px; }
-  .btn { padding: 10px 16px; font-size: 13px; }
+  .hero { padding: 6px 10px; max-width: 380px; }
+  .hero h1 { font-size: 26px; letter-spacing: 3px; }
+  .big-gem { width: 68px; height: 68px; margin-bottom: 6px; }
+  .subtitle { margin: 2px 0 6px; font-size: 10.5px; }
+  .rules-hint { padding: 6px 10px; font-size: 10.5px; margin-bottom: 6px; }
+  .menu-buttons { margin-top: 10px; gap: 8px; max-width: 260px; }
+  .btn { padding: 9px 14px; font-size: 13px; }
   .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
   .game-wrap { gap: 12px; }
   .game-header { padding: 4px 8px; }
@@ -842,8 +844,8 @@ body::after {
 @media (min-width: 1024px) {
   .menu-buttons { max-width: 340px; }
   .board { width: 440px; height: 440px; }
-  .big-gem { width: 160px; height: 160px; }
-  .hero h1 { font-size: 52px; }
+  .big-gem { width: 110px; height: 110px; }
+  .hero h1 { font-size: 40px; }
 }
 
 /* 隐藏 scrollbar */
@@ -931,9 +933,9 @@ body::after {
         </svg>
       </div>
       <h1>月蚀棋 · 可移动版</h1>
-      <p class="subtitle">Moon Chess · 原版 + 可移动（4 向） · 先连三者胜，每方同时最多三颗</p>
+      <p class="subtitle">Moon Chess · 原版+移动 · 连三胜 · 每方上限 3 子</p>
       <p class="rules-hint">
-        3×3 棋盘，先连成三子者胜。<b>每方最多同时有 3 颗棋子</b>。操作：<b>点击空格 = 落子</b>；<b>点击己方棋子 = 选中</b>，再点<b>上下左右 4 个相邻空格</b>即可移动。轮到己方回合时，若己方已满 3 颗，则<b>己方最早子闪烁警告</b>——<b>放新子 / 完成一次移动</b>后，己方最早子才<b>消逝</b>。
+        横/竖/斜<b>三子连线胜</b>。每方同时最多 <b>3 子</b>。操作：<b>点空格落子</b> 或 <b>点己方子→点空格移动（4 向）</b>。操作后<b>己方最早子消逝</b>，满 3 方最早子<b>闪烁预警</b>。
       </p>
     </div>
 
@@ -953,7 +955,7 @@ body::after {
     </div>
 
     <footer class="footer">
-      <span>⚡ 先连三者胜 · 每方同时最多三颗 · 操作 = 落子 或 4 向移动 · 操作后己方最早子消逝</span>
+      <span>⚡ 连三胜 · 每方 3 子上限 · 落子 / 4 向移动 · 操作后消己方最早子</span>
     </footer>
   </section>
 
