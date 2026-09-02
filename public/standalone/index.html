@@ -508,15 +508,6 @@ body::after {
 
 /* 游戏结束/对方思考时：整个棋盘点击禁用且降低可交互感 */
 .board.disabled .cell { cursor: not-allowed; pointer-events: none; }
-.board.disabled::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: rgba(4,6,15,0.18);
-  pointer-events: none;
-  z-index: 2;
-}
 
 /* AI 下子预览（思考时，AI 计划落子的空格显示半透明虚子） */
 .cell .preview-move {
@@ -656,32 +647,32 @@ body::after {
   50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
 }
 
-/* ========== AI 思考候选红圈（1~2 个假 + 真实末尾，线性 1~2 下切换） ========== */
+/* ========== AI 思考候选提示（1~2 个位置循环切换，月蚀紫蓝主题色） ========== */
 .cell .think-candidate {
   position: absolute;
-  inset: 20%;
+  inset: 22%;
   border-radius: 50%;
-  border: 2px solid rgba(255, 70, 90, 0.35);
+  border: 2px solid rgba(120, 92, 255, 0.3);
   pointer-events: none;
   transition: all 0.25s ease;
 }
 .cell .think-candidate.dim {
-  opacity: 0.28;
+  opacity: 0.3;
   transform: scale(0.82);
-  border-color: rgba(255, 70, 90, 0.28);
+  border-color: rgba(120, 92, 255, 0.24);
 }
 .cell .think-candidate.active {
-  opacity: 1;
+  opacity: 0.95;
   transform: scale(1.02);
-  border-color: rgba(255, 70, 90, 0.9);
+  border-color: rgba(90, 150, 255, 0.85);
   box-shadow:
-    0 0 14px rgba(255, 70, 90, 0.5),
-    inset 0 0 10px rgba(255, 70, 90, 0.28);
+    0 0 12px rgba(76, 201, 240, 0.35),
+    inset 0 0 8px rgba(157, 78, 221, 0.22);
   animation: candidatePulse 1.6s ease-in-out infinite;
 }
 @keyframes candidatePulse {
-  0%,100% { transform: scale(1.02); opacity: 0.88; }
-  50%     { transform: scale(1.14); opacity: 1;    }
+  0%,100% { transform: scale(1.02); opacity: 0.78; }
+  50%     { transform: scale(1.12); opacity: 1;    }
 }
 
 /* 落子动效 */

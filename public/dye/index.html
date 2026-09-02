@@ -823,8 +823,8 @@ body::after {
 /* ============ 桌面大屏 ============ */
 @media (min-width: 1024px) {
   .menu-buttons { max-width: 340px; }
-  .dye-board { width: 440px; }
-  .big-gem { width: 100px; height: 100px; }
+  .board { width: 440px; }
+  .big-gem { width: 110px; height: 110px; }
   .hero h1 { font-size: 36px; }
 }
 
@@ -869,7 +869,14 @@ body::after {
   font-size: 12px; color: #b6addd; margin: 6px 0 8px; min-height: 16px;
   text-align: center;
 }
-.dye-board {
+
+/* ============ 棋盘容器 ============ */
+.board-wrap {
+  display: flex; justify-content: center; align-items: center;
+  position: relative;
+}
+.board {
+  position: relative;
   width: min(82vw, 480px);
   aspect-ratio: 1 / 1;
   margin: 0 auto;
@@ -886,8 +893,21 @@ body::after {
     0 30px 80px rgba(0,0,0,0.6),
     0 0 60px rgba(76,201,240,0.08),
     0 0 80px rgba(157,78,221,0.12);
+  backdrop-filter: blur(12px);
 }
-.dye-cell {
+
+/* 棋盘背景魔法线（动态按 SIZE 比例通过 grid-bg class 也可以，这里放 3/4/5 通用线性渐变占位） */
+.grid-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 24px;
+  opacity: 0.85;
+  z-index: 0;
+}
+
+/* 单元格 */
+.cell {
   position: relative;
   border-radius: 14px;
   background: transparent;
@@ -895,68 +915,104 @@ body::after {
   display: flex; align-items: center; justify-content: center;
   transition: background 0.15s, box-shadow 0.15s;
   user-select: none;
+  z-index: 1;
 }
-.dye-cell:hover {
-  background: rgba(200, 220, 255, 0.12);
+.cell:hover:not(:has(.piece)) {
+  background: var(--cell-hi);
 }
-.dye-cell.place-hint::after {
+.cell.place-hint::after {
   content: ''; position: absolute; inset: 25%; border-radius: 50%;
   border: 2px dashed rgba(255,255,255,.2);
 }
-.dye-cell.move-hint::after {
+.cell.move-hint::after {
   content: ''; position: absolute; inset: 18%; border-radius: 12px;
   border: 2px dashed rgba(122,220,170,.6);
   background: rgba(81,232,152,.1);
 }
-.dye-cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.3); }
-.dye-cell.flipping { animation: dyeFlip 500ms ease; }
-@keyframes dyeFlip { 0%{transform:scale(1);} 30%{transform:scale(.4);opacity:.55;} 60%{transform:scale(.4);opacity:.55;} 100%{transform:scale(1);} }
-.dye-cell.disabled { cursor: not-allowed; pointer-events: none; }
-.dye-cell.ending::after {
+.cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.3); }
+.cell.flipping { animation: cellFlip 500ms ease; }
+@keyframes cellFlip { 0%{transform:scale(1);} 30%{transform:scale(.4);opacity:.55;} 60%{transform:scale(.4);opacity:.55;} 100%{transform:scale(1);} }
+.cell.disabled { cursor: not-allowed; pointer-events: none; }
+.cell.ending::after {
   content: ''; position: absolute; inset: 12%; border-radius: 10px;
   background: linear-gradient(180deg, rgba(81,232,152,.22), rgba(81,232,152,0));
   border: 2px solid rgba(81,232,152,.6);
   animation: dyeWinPulse .9s ease-in-out infinite;
 }
 @keyframes dyeWinPulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.05);} }
-.dye-piece {
+
+/* 棋盘禁用时（AI思考/结束） */
+.board.disabled .cell { cursor: not-allowed; pointer-events: none; }
+
+/* 棋子 */
+.piece {
   width: 72%; height: 72%;
-  border-radius: 50%;
-  position: relative; z-index: 1;
-  animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  transition: opacity 0.25s;
+  z-index: 2;
 }
-@keyframes dyeDrop { from { transform: translateY(-6px) scale(.6); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
-.dye-piece.p1 {
-  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #ffe6f4 40%, #ffb3d9 70%, #f77ac0 100%);
-  box-shadow:
-    inset 0 -4px 8px rgba(200,80,150,0.25),
-    inset 0 2px 3px rgba(255,255,255,0.6),
-    0 8px 18px rgba(0,0,0,0.5),
-    0 0 14px rgba(255,140,210,0.55);
-  animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1), dyePulseP1 2.2s ease-in-out infinite;
+.piece .gem {
+  width: 100%; height: 100%;
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
 }
-.dye-piece.p2 {
-  background: radial-gradient(circle at 32% 28%, #ffffff 0%, #cfe0ff 38%, #7b70ff 72%, #4c8dff 100%);
-  box-shadow:
-    inset 0 -4px 8px rgba(60,80,200,0.3),
-    inset 0 2px 3px rgba(255,255,255,0.55),
-    0 8px 18px rgba(0,0,0,0.55),
-    0 0 14px rgba(120,160,255,0.55);
-  animation: dyeDrop 300ms cubic-bezier(.3,1.6,.6,1), dyePulseP2 2.4s ease-in-out infinite;
+.piece.p1 .gem { animation: pulseP1 2.2s ease-in-out infinite; }
+.piece.p2 .gem { animation: pulseP2 2.4s ease-in-out infinite; }
+@keyframes pulseP1 {
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.55)) drop-shadow(0 0 6px rgba(255,150,210,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.5)) drop-shadow(0 0 18px rgba(198,150,255,0.78)); }
 }
-@keyframes dyePulseP1 {
-  0%,100% { filter: drop-shadow(0 0 4px rgba(255,150,210,0.45)); }
-  50% { filter: drop-shadow(0 0 16px rgba(198,150,255,0.82)); }
+@keyframes pulseP2 {
+  0%,100% { filter: drop-shadow(0 8px 16px rgba(0,0,0,0.6)) drop-shadow(0 0 5px rgba(110,92,255,0.45)); }
+  50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
 }
-@keyframes dyePulseP2 {
-  0%,100% { filter: drop-shadow(0 0 4px rgba(110,92,255,0.45)); }
-  50% { filter: drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
+
+/* 落子动效 */
+.piece.drop {
+  animation: dropIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.dye-piece.sliding { animation: dyeSlide 320ms cubic-bezier(.25,1.4,.5,1) both; }
-@keyframes dyeSlide {
+@keyframes dropIn {
+  0% { transform: scale(0.2) translateY(-12px); opacity: 0; }
+  60% { transform: scale(1.15) translateY(2px); opacity: 1; }
+  100% { transform: scale(1) translateY(0); }
+}
+
+/* 移动滑动动画 */
+.piece.sliding { animation: pieceSlide 320ms cubic-bezier(.25,1.4,.5,1) both; }
+@keyframes pieceSlide {
   from { transform: translate(calc(var(--dx,0) * -100%), calc(var(--dy,0) * -100%)); opacity: .55; }
   to   { transform: translate(0,0); opacity: 1; }
 }
+
+/* AI 思考候选提示（1~2 个位置循环切换，月蚀紫蓝主题色） */
+.cell .think-candidate {
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  border: 2px solid rgba(120, 92, 255, 0.3);
+  pointer-events: none;
+  transition: all 0.25s ease;
+  z-index: 3;
+}
+.cell .think-candidate.dim {
+  opacity: 0.3;
+  transform: scale(0.82);
+  border-color: rgba(120, 92, 255, 0.24);
+}
+.cell .think-candidate.active {
+  opacity: 0.95;
+  transform: scale(1.02);
+  border-color: rgba(90, 150, 255, 0.85);
+  box-shadow:
+    0 0 12px rgba(76, 201, 240, 0.35),
+    inset 0 0 8px rgba(157, 78, 221, 0.22);
+  animation: candidatePulse 1.6s ease-in-out infinite;
+}
+@keyframes candidatePulse {
+  0%,100% { transform: scale(1.02); opacity: 0.78; }
+  50%     { transform: scale(1.12); opacity: 1;    }
+}
+
 .dye-banner {
   width: 100%;
   max-width: 520px;
@@ -1012,13 +1068,14 @@ body::after {
   <!-- ========== 主菜单 ========== -->
     <section id="menu" class="page show">
     <div class="hero">
-      <div class="hero-art" aria-hidden="true">
-        <svg viewBox="0 0 200 200" width="100%" height="100%">
+      <div class="big-gem">
+        <svg viewBox="0 0 200 200">
           <defs>
-            <radialGradient id="hero-g" cx="35%" cy="30%" r="70%">
-              <stop offset="0%" stop-color="#ffffff" stop-opacity=".95"/>
-              <stop offset="40%" stop-color="#d6caff" stop-opacity=".75"/>
-              <stop offset="100%" stop-color="#7865ff" stop-opacity=".55"/>
+            <radialGradient id="hero-g" cx="50%" cy="35%" r="70%">
+              <stop offset="0%" stop-color="#fff" stop-opacity=".8"/>
+              <stop offset="30%" stop-color="#ffc8ff"/>
+              <stop offset="65%" stop-color="#9d4edd"/>
+              <stop offset="100%" stop-color="#1a0033"/>
             </radialGradient>
             <filter id="hero-glow"><feGaussianBlur stdDeviation="6"/></filter>
           </defs>
@@ -1047,22 +1104,6 @@ body::after {
         <div class="dye-opts" id="moveOpts">
           <div class="dye-opt active" data-v="4"><div class="t">4 邻</div><div class="d">上下左右</div></div>
           <div class="dye-opt" data-v="8"><div class="t">8 邻</div><div class="d">含对角</div></div>
-        </div>
-      </div>
-
-      <div class="dye-card">
-        <h2>难度</h2>
-        <div class="dye-opts" id="diffOpts">
-          <div class="dye-opt active" data-v="easy"><div class="t">简单</div><div class="d">AI 放水，易赢</div></div>
-          <div class="dye-opt" data-v="std"><div class="t">标准</div><div class="d">优先翻子+占地</div></div>
-        </div>
-      </div>
-
-      <div class="dye-card">
-        <h2>执棋方（粉白 = 先手）</h2>
-        <div class="dye-opts" id="sideOpts">
-          <div class="dye-opt active" data-v="1"><div class="t">执粉白（先手）</div><div class="d">P1</div></div>
-          <div class="dye-opt" data-v="2"><div class="t">执紫蓝（后手）</div><div class="d">P2</div></div>
         </div>
       </div>
 
@@ -1101,7 +1142,9 @@ body::after {
 
       <div class="dye-hint" id="hint">点击空格放置棋子，或点击棋子选中后移动</div>
 
-      <div class="dye-board" id="board"></div>
+      <div class="board-wrap">
+        <div class="board" id="board"></div>
+      </div>
 
       <div class="dye-banner" id="endBanner">
         <div class="msg" id="endMsg">结束</div>
@@ -1332,10 +1375,15 @@ window.__moon_chess_showOnlineTip = function() {
   let aiThinking = false;
   let aiTimer = null;
   let slideInfo = null;    // {fromR,fromC,toR,toC} for slide animation
+  // AI 思考候选提示（1~2 个位置循环切换）
+  let aiCandidatesTimer = null;
+  let aiCandidates = [];          // [{r,c}, ...]  1~2 个位置
+  let aiCandidatesActiveIdx = 0;
 
   // ======================= Setup UI =======================
   function optPicker(id, cb) {
     const root = document.getElementById(id);
+    if (!root) return;
     const opts = root.querySelectorAll('.dye-opt');
     opts.forEach(o => {
       o.addEventListener('click', () => {
@@ -1348,27 +1396,58 @@ window.__moon_chess_showOnlineTip = function() {
   // 若 URL 带 ?s=3 开局默认 3x3
   if(SIZE===3){
     const root = document.getElementById('sizeOpts');
-    root.querySelectorAll('.dye-opt').forEach(o=>o.classList.toggle('active', o.dataset.v==='3'));
+    if (root) root.querySelectorAll('.dye-opt').forEach(o=>o.classList.toggle('active', o.dataset.v==='3'));
   }
-  optPicker('moveOpts'); optPicker('diffOpts'); optPicker('sideOpts'); optPicker('sizeOpts');
+  optPicker('moveOpts'); optPicker('sizeOpts');
 
-  function activeVal(id) { return document.querySelector('#'+id+' .dye-opt.active').dataset.v; }
+  function activeVal(id) {
+    const el = document.querySelector('#'+id+' .dye-opt.active');
+    return el ? el.dataset.v : null;
+  }
 
+  // 开始对局流程：点开始按钮 → 弹难度选择 → 弹执棋方选择 → 进入对局
+  let _pendingCfg = null;
   document.getElementById('btnStart').addEventListener('click', () => {
     const size = parseInt(activeVal('sizeOpts'),10);
     const moveK = parseInt(activeVal('moveOpts'),10);
-    const diff = activeVal('diffOpts');
-    const me = parseInt(activeVal('sideOpts'),10);
+    _pendingCfg = { size, moveK };
+    document.getElementById('side-select').classList.remove('show');
+    document.getElementById('difficulty-select').classList.add('show');
+  });
+
+  // 三档难度按钮（C模式 AI 实际支持 easy / std：normal 映射到 std，hard 也走 std 但更稳）
+  document.getElementById('diff-easy').addEventListener('click', () => onDiffPicked('easy'));
+  document.getElementById('diff-normal').addEventListener('click', () => onDiffPicked('std'));
+  document.getElementById('diff-hard').addEventListener('click', () => onDiffPicked('std'));
+
+  function onDiffPicked(diff) {
+    if (_pendingCfg) _pendingCfg.diff = diff;
+    document.getElementById('difficulty-select').classList.remove('show');
+    document.getElementById('side-select').classList.add('show');
+  }
+
+  document.getElementById('side-back').addEventListener('click', () => {
+    document.getElementById('side-select').classList.remove('show');
+    document.getElementById('difficulty-select').classList.add('show');
+  });
+
+  document.getElementById('side-white').addEventListener('click', () => onSidePicked(1));
+  document.getElementById('side-black').addEventListener('click', () => onSidePicked(2));
+
+  function onSidePicked(me) {
+    document.getElementById('side-select').classList.remove('show');
+    if (!_pendingCfg) return;
+    const size = _pendingCfg.size; const moveK = _pendingCfg.moveK; const diff = _pendingCfg.diff || 'std';
     SIZE = size;
     cfg = { size, moveK, diff, me };
     document.getElementById('ruleChip').textContent = `${size}×${size} · 子多者胜 · ${moveK}邻移动 · 夹击染子`;
     const sub = document.querySelector('#setup .sub');
-    if (sub) sub.textContent = `${size}×${size} · 空棋盘开局 · 放置/移动均可 · 夹击染子（可选是否触发） · 子多者胜`;
+    if (sub) sub.textContent = `${size}×${size} · 空棋盘开局 · 放置/移动均可 · 夹击染子 · 子多者胜`;
     document.getElementById('menu').classList.remove('show');
     document.getElementById('game').classList.add('show');
     (syncInGameMoveBtn && syncInGameMoveBtn());
     startGame();
-  });
+  }
 
   // 联机按钮：当前是纯静态分享版本 → 弹部署指南
   const btnOnlineCreateD = document.getElementById('btn-online-create');
@@ -1531,6 +1610,57 @@ window.__moon_chess_showOnlineTip = function() {
   // ======================= Rendering =======================
   const boardEl = document.getElementById('board');
 
+  // AB 同款 SVG gem 棋子（粉白=P1，紫蓝=P2），C 模式独立 SVG id 前缀避免与全局 id 冲突
+  function gemSVG(player) {
+    if (player === P1) {
+      return `<svg viewBox="0 0 100 100" class="gem"><defs>
+        <radialGradient id="d-gw" cx="48%" cy="36%" r="68%">
+          <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
+          <stop offset="32%"  stop-color="#fff5fb" stop-opacity="0.98"/>
+          <stop offset="58%"  stop-color="#ffc3de" stop-opacity="0.96"/>
+          <stop offset="82%"  stop-color="#ff8fc7" stop-opacity="0.94"/>
+          <stop offset="100%" stop-color="#c97bff" stop-opacity="0.9"/>
+        </radialGradient>
+        <linearGradient id="d-gws" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"  stop-color="#b6efff" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="#ffa4d6" stop-opacity="0.1"/>
+        </linearGradient>
+        <filter id="d-glw"><feGaussianBlur stdDeviation="2.4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#d-gw)" filter="url(#d-glw)" stroke="#ffd8ec" stroke-opacity="0.78" stroke-width="1.2"/>
+      <polygon points="12,30 30,30 14,52 12,30" fill="url(#d-gws)"/>
+      <polygon points="30,30 50,8 50,50 30,70 14,52 30,30" fill="#c4f3ff" fill-opacity="0.14"/>
+      <polygon points="50,8 70,30 50,44 30,30" fill="#ffffff" fill-opacity="0.52"/>
+      <polygon points="88,30 88,70 70,50 70,30" fill="#ff6fb8" fill-opacity="0.18"/>
+      <polygon points="50,92 30,70 50,54 70,70 88,70 50,92" fill="#b87aff" fill-opacity="0.18"/>
+      <circle cx="46" cy="40" r="3.4" fill="#ffffff" fill-opacity="0.92"/>
+    </svg>`;
+    } else {
+      return `<svg viewBox="0 0 100 100" class="gem"><defs>
+        <radialGradient id="d-gb" cx="50%" cy="34%" r="70%">
+          <stop offset="0%"   stop-color="#e9efff" stop-opacity="1"/>
+          <stop offset="30%"  stop-color="#8fb3ff" stop-opacity="0.98"/>
+          <stop offset="58%"  stop-color="#7a5bff" stop-opacity="0.97"/>
+          <stop offset="84%"  stop-color="#4a2bc7" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#241070" stop-opacity="0.92"/>
+        </radialGradient>
+        <linearGradient id="d-gbs" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%"  stop-color="#7e6bff" stop-opacity="0.28"/>
+          <stop offset="100%" stop-color="#3b6fff" stop-opacity="0.28"/>
+        </linearGradient>
+        <filter id="d-glb"><feGaussianBlur stdDeviation="2.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <polygon points="50,8 88,30 88,70 50,92 12,70 12,30" fill="url(#d-gb)" filter="url(#d-glb)" stroke="#c0b8ff" stroke-opacity="0.72" stroke-width="1.2"/>
+      <polygon points="12,30 30,30 14,52 12,30" fill="#9e7cff" fill-opacity="0.28"/>
+      <polygon points="30,30 50,8 50,50 30,70 14,52 30,30" fill="url(#d-gbs)"/>
+      <polygon points="50,8 70,30 50,44 30,30" fill="#d7e6ff" fill-opacity="0.38"/>
+      <polygon points="88,30 88,70 68,50 70,30" fill="#3a6bff" fill-opacity="0.24"/>
+      <polygon points="50,92 30,70 50,54 70,70 88,70 50,92" fill="#6b3cff" fill-opacity="0.2"/>
+      <circle cx="46" cy="40" r="3" fill="#e9f2ff" fill-opacity="0.9"/>
+    </svg>`;
+    }
+  }
+
   function buildBoardDOM() {
     boardEl.innerHTML = '';
     boardEl.style.gridTemplateColumns = `repeat(${SIZE}, 1fr)`;
@@ -1538,16 +1668,41 @@ window.__moon_chess_showOnlineTip = function() {
     for (let r=0;r<SIZE;r++) {
       for (let c=0;c<SIZE;c++) {
         const d = document.createElement('div');
-        d.className='dye-cell';
+        d.className = 'cell';
         d.dataset.r = r; d.dataset.c = c;
         d.addEventListener('click', onCellClick);
         boardEl.appendChild(d);
       }
     }
+    // 追加魔法线（grid-bg）：按 SIZE 计算垂直/水平分割线比例
+    const gb = document.createElement('div');
+    gb.className = 'grid-bg';
+    const fracs = [];
+    for (let i=1; i<SIZE; i++) fracs.push((100*i/SIZE).toFixed(3) + '%');
+    let bg = '';
+    for (const f of fracs) {
+      bg += `linear-gradient(to right, transparent calc(${f} - 0.5px), var(--board-line) ${f}, var(--board-line) calc(${f} + 0.5px), transparent calc(${f} + 1px)),`;
+    }
+    for (const f of fracs) {
+      bg += `linear-gradient(to bottom, transparent calc(${f} - 0.5px), var(--board-line) ${f}, var(--board-line) calc(${f} + 0.5px), transparent calc(${f} + 1px)),`;
+    }
+    if (bg) bg = bg.slice(0, -1); else bg = 'none';
+    gb.style.background = bg;
+    gb.style.animation = 'linePulse 4s ease-in-out infinite';
+    boardEl.appendChild(gb);
+  }
+
+  // linePulse 关键帧（与 grid-bg CSS 配合）
+  if (!document.getElementById('d-line-pulse-style')) {
+    const s = document.createElement('style');
+    s.id = 'd-line-pulse-style';
+    s.textContent = `@keyframes linePulse { 0%,100% { opacity: 0.6; } 50% { opacity: 1; } }`;
+    document.head.appendChild(s);
   }
 
   function cellAt(r,c) {
-    return boardEl.children[r*SIZE+c];
+    // 用 .cell 查询，排除 grid-bg 节点
+    return boardEl.querySelectorAll('.cell')[r*SIZE+c];
   }
 
   function render(extra = {}) {
@@ -1559,14 +1714,15 @@ window.__moon_chess_showOnlineTip = function() {
     const curText = game.current === P1
       ? (me===P1 ? '你的回合 (粉白)' : 'AI 思考中 (粉白)')
       : (me===P2 ? '你的回合 (紫蓝)' : 'AI 思考中 (紫蓝)');
-    const turnLabel = document.getElementById('turn-indicator');
-    const tEl=document.getElementById('turn-indicator');tEl.classList.remove('p1','p2');tEl.classList.add(game.current===P1?'p1':'p2');
-    document.getElementById('turn-indicator').textContent = curText;
+    const tEl=document.getElementById('turn-indicator');
+    tEl.classList.remove('p1','p2');
+    tEl.classList.add(game.current===P1?'p1':'p2');
+    tEl.textContent = curText;
 
-    
+    // 棋盘整体禁用：AI 思考中 / 对局结束
+    boardEl.classList.toggle('disabled', aiThinking || game.status !== 'playing');
 
     // 提示高亮集合
-    // 合并交互规则:点击空格=放子; 点击己方棋子=选中并展示移动目标; 点选中子取消
     let validPlaceSet = null, validMoveDestBySel = null, myPiecesMovable = new Set();
     if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
       validPlaceSet = new Set();
@@ -1585,6 +1741,10 @@ window.__moon_chess_showOnlineTip = function() {
       }
     }
 
+    // AI 候选位置集合快速查找：Set<"r,c"> + activeIdx 坐标
+    const candSet = new Set(aiCandidates.map(p => p.r+','+p.c));
+    const activeKey = (aiCandidates[aiCandidatesActiveIdx]) ? (aiCandidates[aiCandidatesActiveIdx].r+','+aiCandidates[aiCandidatesActiveIdx].c) : null;
+
     // per-cell
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
       const el = cellAt(r,c);
@@ -1594,28 +1754,46 @@ window.__moon_chess_showOnlineTip = function() {
         el.innerHTML = '';
         if (v !== 0) {
           const p = document.createElement('div');
-          p.className='dye-piece ' + (v===P1?'p1':'p2');
-          // slide move animation: if this cell is the destination of a recent move
+          p.className = 'piece ' + (v===P1?'p1':'p2') + ' drop';
           if (slideInfo && slideInfo.toR===r && slideInfo.toC===c) {
             const dx = slideInfo.toC - slideInfo.fromC;
             const dy = slideInfo.toR - slideInfo.fromR;
             p.style.setProperty('--dx', dx.toFixed(1));
             p.style.setProperty('--dy', dy.toFixed(1));
+            p.classList.remove('drop');
             p.classList.add('sliding');
             setTimeout(()=>{ p.classList.remove('sliding'); p.style.removeProperty('--dx'); p.style.removeProperty('--dy'); }, 360);
           }
+          p.innerHTML = gemSVG(v);
           el.appendChild(p);
         }
         el.dataset._k = key;
       }
-      el.classList.remove('place-hint','move-hint','selected','removing','ending','flipping','disabled');
+      el.classList.remove('place-hint','move-hint','selected','ending','flipping','disabled');
       if (extra.flipSet && extra.flipSet.has(r+','+c)) el.classList.add('flipping');
+
+      // AI 候选圈（只在空格上渲染）
+      const thinkCand = el.querySelector('.think-candidate');
+      const k = r+','+c;
+      if (candSet.has(k) && v === 0) {
+        const isActive = (k === activeKey);
+        if (!thinkCand) {
+          const tc = document.createElement('div');
+          tc.className = 'think-candidate ' + (isActive ? 'active' : 'dim');
+          el.appendChild(tc);
+        } else {
+          thinkCand.classList.remove('active','dim');
+          thinkCand.classList.add(isActive ? 'active' : 'dim');
+        }
+      } else if (thinkCand) {
+        thinkCand.remove();
+      }
 
       if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
         if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
         const dests = validMoveDestBySel ? validMoveDestBySel[movingSel && (movingSel.r+','+movingSel.c)] : null;
-        if (dests && dests.has(r+','+c)) el.classList.add('move-hint');
-        else if (v === 0 && validPlaceSet && validPlaceSet.has(r+','+c)) el.classList.add('place-hint');
+        if (dests && dests.has(k)) el.classList.add('move-hint');
+        else if (v === 0 && validPlaceSet && validPlaceSet.has(k)) el.classList.add('place-hint');
       } else {
         el.classList.add('disabled');
       }
@@ -1737,15 +1915,67 @@ window.__moon_chess_showOnlineTip = function() {
   }
 
   // ======================= AI =======================
+  function clearAiCandidatesTimer() {
+    if (aiCandidatesTimer) { clearInterval(aiCandidatesTimer); aiCandidatesTimer = null; }
+    aiCandidates = [];
+    aiCandidatesActiveIdx = 0;
+  }
+
   function scheduleAI() {
     if (game.status !== 'playing') return;
     aiThinking = true;
+    const player = cfg.me === P1 ? P2 : P1;
+
+    // 挑选 1~2 个候选动作的目标位置做脉冲提示（简化版）
+    const all = listAllActions(player);
+    if (all.length > 0) {
+      // 优先选高翻转数的前几个（与 std 评分近似）
+      const sorted = [...all].sort((a,b)=>b.flipCount-a.flipCount);
+      const pickN = Math.min(2, sorted.length);
+      // 从前几个（最多前 4 个好动作）中随机挑 pickN 个，避免永远固定在同一格
+      const pool = sorted.slice(0, Math.min(4, sorted.length));
+      const chosen = [];
+      for (let i=0; i<pickN; i++) {
+        const idx = Math.floor(Math.random()*pool.length);
+        const it = pool.splice(idx,1)[0];
+        chosen.push({ r: it.r, c: it.c });
+      }
+      aiCandidates = chosen;
+      aiCandidatesActiveIdx = 0;
+      // 切换 activeIdx 的定时器（只在有 2 个候选时切换）
+      if (aiCandidatesTimer) clearInterval(aiCandidatesTimer);
+      if (aiCandidates.length > 1) {
+        aiCandidatesTimer = setInterval(() => {
+          aiCandidatesActiveIdx = (aiCandidatesActiveIdx + 1) % aiCandidates.length;
+          if (!aiThinking) return;
+          // 只更新候选圈的 active/dim，避免整盘重渲染影响动画
+          const map = new Map();
+          aiCandidates.forEach((p,i) => map.set(p.r+','+p.c, i===aiCandidatesActiveIdx ? 'active' : 'dim'));
+          document.querySelectorAll('#board .cell').forEach(el => {
+            const tc = el.querySelector('.think-candidate');
+            const key = (el.dataset.r)+','+(el.dataset.c);
+            if (!map.has(key)) return;
+            if (!tc) {
+              const n = document.createElement('div');
+              n.className = 'think-candidate ' + map.get(key);
+              el.appendChild(n);
+            } else {
+              tc.classList.remove('active','dim');
+              tc.classList.add(map.get(key));
+            }
+          });
+        }, 1400);
+      }
+    }
+
     render();
-    const wait = cfg.diff === 'easy' ? 500 + Math.random()*300 : 700 + Math.random()*500;
+    const wait = cfg.diff === 'easy' ? 650 + Math.random()*400 : 900 + Math.random()*600;
     aiTimer = setTimeout(runAI, wait);
   }
 
   function runAI() {
+    // 先清理候选再思考落子
+    clearAiCandidatesTimer();
     if (game.status !== 'playing') return;
     const player = cfg.me === P1 ? P2 : P1;
     const acts = listAllActions(player);
@@ -1870,7 +2100,7 @@ window.__moon_chess_showOnlineTip = function() {
   document.getElementById('btnBannerExit').addEventListener('click', backToSetup);
 
   function backToSetup() {
-    clearTimeout(aiTimer); aiThinking=false;
+    clearTimeout(aiTimer); clearAiCandidatesTimer(); aiThinking=false;
     document.getElementById('game').classList.remove('show');
     (document.getElementById('menu').classList.add('show'), document.getElementById('game').classList.remove('show'));
     setScrollLock(false);
@@ -1881,7 +2111,7 @@ window.__moon_chess_showOnlineTip = function() {
     movingSel = null;
     aiThinking = false;
     slideInfo = null;
-    clearTimeout(aiTimer);
+    clearTimeout(aiTimer); clearAiCandidatesTimer();
     buildBoardDOM();
     render();
     setScrollLock(true);
