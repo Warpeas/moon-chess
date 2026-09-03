@@ -306,22 +306,21 @@ body::after {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 16px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   min-width: 0;
 }
 .game-header .turn-indicator {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 6px;
-  font-size: 18px;
-  font-weight: 700;
-  padding: 12px 24px;
-  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 12px;
+  letter-spacing: 0.5px;
 }
 .game-header .game-actions {
   flex: 0 0 auto;
@@ -543,7 +542,7 @@ body::after {
   .dye-setup-actions .btn { padding: 9px 14px; font-size: 13px; min-width: 140px; }
   .board { width: min(88vw, 420px); height: min(88vw, 420px); padding: 8px; gap: 2px; border-radius: 18px; }
   .cell { border-radius: 10px; }
-  .turn-indicator { font-size: 14px; padding: 8px 14px; letter-spacing: 1px; }
+  .turn-indicator { font-size: 12px; padding: 5px 10px; letter-spacing: 0.5px; }
   .brand .title { font-size: 16px; }
   .modal { padding: 22px 18px; min-width: 280px; }
   .room-meta { font-size: 11px; padding: 6px 10px; gap: 6px; }
@@ -824,28 +823,30 @@ body::after {
   50%     { transform: scale(1.12); opacity: 1;    }
 }
 
-.dye-banner {
+/* 结束横幅（贴棋盘上方，对齐 AB） */
+.end-banner {
   width: 100%;
   max-width: 520px;
-  margin: 10px auto 4px;
-  padding: 14px 18px;
-  border-radius: 18px;
+  margin: 2px auto 10px;
+  padding: 10px 14px;
+  border-radius: 16px;
   background: linear-gradient(135deg, rgba(157,78,221,0.45), rgba(36,0,70,0.75));
   border: 1px solid rgba(200,220,255,0.18);
   box-shadow: 0 0 22px rgba(157,78,221,0.4);
   display: none;
   align-items: center; justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   color: var(--text);
 }
-.dye-banner.show { display: flex; }
-.dye-banner .msg {
-  font-size: 18px; letter-spacing: 2px; font-weight: 700;
+.end-banner.show { display: flex; }
+.end-banner .end-title {
+  font-size: 14px; letter-spacing: 1px; font-weight: 700;
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
 }
-.dye-banner .msg.win  { color: #ffd5ff; text-shadow: 0 0 10px rgba(255,120,220,0.8); }
-.dye-banner .msg.lose { color: #bcd8ff; text-shadow: 0 0 10px rgba(76,201,240,0.7); }
-.dye-banner .msg.draw { color: var(--text-dim); }
-.dye-banner .btns { display: flex; gap: 8px; }
+.end-banner .end-title.win  { color: #ffd5ff; text-shadow: 0 0 10px rgba(255,120,220,0.8); }
+.end-banner .end-title.lose { color: #bcd8ff; text-shadow: 0 0 10px rgba(76,201,240,0.7); }
+.end-banner .end-title.draw { color: var(--text-dim); }
+.end-banner .end-actions { display: flex; gap: 6px; flex-wrap: nowrap; }
 .dye-legend { font-size: 12px; color: #b6addd; line-height: 1.8; }
 .dye-legend b { color: #fff5ff; }
 
@@ -936,34 +937,37 @@ body::after {
     <section id="game" class="page">
     <div class="dye-wrap">
       <div class="game-header">
-        <div id="turn-indicator" class="turn-indicator">你的回合</div>
+        <div id="turn-indicator" class="turn-indicator">
+          <span class="mini-gem" id="turnGem"></span>
+          <span id="turnLabel">你的回合</span>
+        </div>
         <div class="game-actions">
-          <button class="btn btn-ghost btn-small" id="btnExitToMenu" title="返回设置">← 设置</button>
-          <button class="btn btn-ghost btn-small" id="btnRestart" title="再来一局">↻ 重开</button>
-          <button class="btn btn-ghost btn-small" id="btnInGameMoveK" title="切换 4/8 邻移动范围">🧭 4 邻</button>
+          <button class="btn btn-ghost btn-small" id="btnRestart" title="再来一局">↻</button>
+          <button class="btn btn-ghost btn-small" id="btnInGameMoveK" title="切换 4/8 邻">🧭4</button>
+          <button class="btn btn-ghost btn-small" id="btnExitToMenu" title="返回菜单">✕ 退出</button>
         </div>
       </div>
 
-      <div style="display:flex;gap:14px;justify-content:center;margin:6px 0 8px">
-        <div class="dye-count p1"><span class="dot"></span><span id="p1Count">0</span> 粉白</div>
-        <div class="dye-count p2"><span class="dot"></span><span id="p2Count">0</span> 紫蓝</div>
+      <div style="display:flex;gap:14px;justify-content:center;margin:2px 0 0">
+        <div class="dye-count p1"><span class="dot"></span><span id="p1Count">0</span></div>
+        <div class="dye-count p2"><span class="dot"></span><span id="p2Count">0</span></div>
+      </div>
+      <div class="dye-chip" id="ruleChip">4×4 · 子多者胜 · 夹击染子</div>
+
+      <!-- 结束横幅：贴棋盘正上方 -->
+      <div class="end-banner" id="end-banner" hidden>
+        <div class="end-title" id="end-title">你赢了 · 棋盘占满</div>
+        <div class="end-actions">
+          <button class="btn btn-small" id="btn-end-menu">返回</button>
+          <button class="btn btn-small primary" id="btn-end-again">再来一局</button>
+        </div>
       </div>
 
-      <div class="dye-chip" id="ruleChip">子多者胜 · 4 邻移动 · 夹击染子 · 空棋盘开局</div>
-
-      <div class="dye-hint" id="hint">点击空格放置棋子，或点击棋子选中后移动</div>
-
-      <div class="board-wrap">
+      <div class="board-wrap" style="margin-top: 4px">
         <div class="board" id="board"></div>
       </div>
 
-      <div class="dye-banner" id="endBanner">
-        <div class="msg" id="endMsg">结束</div>
-        <div class="btns">
-          <button class="btn btn-ghost btn-small" id="btnBannerExit">改设定</button>
-          <button class="btn btn-small" id="btnBannerRestart" style="background:linear-gradient(135deg,var(--accent-2),var(--accent-3));border-color:transparent;color:white">再来一局</button>
-        </div>
-      </div>
+      <div class="dye-hint" id="hint"></div>
     </div>
   </section>
 
@@ -1530,13 +1534,16 @@ window.__moon_chess_showOnlineTip = function() {
     document.getElementById('p1Count').textContent = p1;
     document.getElementById('p2Count').textContent = p2;
     const me = cfg.me;
-    const curText = game.current === P1
-      ? (me===P1 ? '你的回合 (粉白)' : 'AI 思考中 (粉白)')
-      : (me===P2 ? '你的回合 (紫蓝)' : 'AI 思考中 (紫蓝)');
-    const tEl=document.getElementById('turn-indicator');
-    tEl.classList.remove('p1','p2');
+    // turn-indicator：紧凑文字 + 小 gem 图标（对齐 AB）
+    const tEl = document.getElementById('turn-indicator');
+    tEl.classList.remove('p1','p2','ended');
     tEl.classList.add(game.current===P1?'p1':'p2');
-    tEl.textContent = curText;
+    const thinking = aiThinking;
+    const who = game.current === cfg.me ? '你' : 'AI';
+    const gemId = game.current === P1 ? 'gem-p1' : 'gem-p2';
+    // 迷你 gem SVG（跟 board 里同款，只裁 20×20）
+    const miniGem = gemSVG(game.current);
+    tEl.innerHTML = miniGem + '<span>' + (thinking ? who + ' 思考中' : who + ' 下') + '</span>';
 
     // 棋盘整体禁用：AI 思考中 / 对局结束
     boardEl.classList.toggle('disabled', aiThinking || game.status !== 'playing');
@@ -1642,28 +1649,23 @@ window.__moon_chess_showOnlineTip = function() {
       }
     }
 
-    // End banner
-    const banner = document.getElementById('endBanner');
-    const msgEl = document.getElementById('endMsg');
-    const bannerMsgCls = (c) => { msgEl.classList.remove('win','lose','draw'); if (c) msgEl.classList.add(c); };
+    // End banner（贴棋盘正上方，AB 同款 end-banner）
+    const banner = document.getElementById('end-banner');
+    const titleEl = document.getElementById('end-title');
     if (game.status === 'over') {
       const r = game.result || {};
-      let msg;
-      if (r.winner === 0) {
-        msg = `平局 · ${r.reason||'子数相同'}`;
-        bannerMsgCls('draw');
-      } else if (r.winner === cfg.me) {
-        msg = `🎉 你赢了 · ${r.reason||''}`;
-        bannerMsgCls('win');
-      } else {
-        msg = `AI 获胜 · ${r.reason||''}`;
-        bannerMsgCls('lose');
-      }
-      msgEl.textContent = msg;
+      let cls = 'draw';
+      if (r.winner === cfg.me) cls = 'win';
+      else if (r.winner !== 0) cls = 'lose';
+      const whoText = cls==='win' ? '你赢了' : cls==='lose' ? 'AI 获胜' : '平局';
+      titleEl.textContent = whoText + (r.reason ? ' · ' + r.reason : '');
+      titleEl.classList.remove('win','lose','draw');
+      titleEl.classList.add(cls);
+      banner.hidden = false;
       banner.classList.add('show');
     } else {
       banner.classList.remove('show');
-      bannerMsgCls(null);
+      banner.hidden = true;
     }
 
     const hint = document.getElementById('hint');
@@ -1984,10 +1986,22 @@ window.__moon_chess_showOnlineTip = function() {
   }
 
   // ======================= Tabs & buttons =======================
-  document.getElementById('btnRestart').addEventListener('click', ()=>{ startGame(); });
-  document.getElementById('btnBannerRestart').addEventListener('click', ()=>{ startGame(); });
-  document.getElementById('btnExitToMenu').addEventListener('click', backToSetup);
-  document.getElementById('btnBannerExit').addEventListener('click', backToSetup);
+  document.getElementById('btnRestart').addEventListener('click', ()=>{
+    const b=document.getElementById('end-banner'); b.classList.remove('show'); b.hidden=true;
+    startGame();
+  });
+  document.getElementById('btnExitToMenu').addEventListener('click', ()=>{
+    const b=document.getElementById('end-banner'); b.classList.remove('show'); b.hidden=true;
+    backToSetup();
+  });
+  document.getElementById('btn-end-again').addEventListener('click', ()=>{
+    const b=document.getElementById('end-banner'); b.classList.remove('show'); b.hidden=true;
+    startGame();
+  });
+  document.getElementById('btn-end-menu').addEventListener('click', ()=>{
+    const b=document.getElementById('end-banner'); b.classList.remove('show'); b.hidden=true;
+    backToSetup();
+  });
 
   function backToSetup() {
     clearTimeout(aiTimer); stopAiCandidateCycle(); if(visualSlide) { clearTimeout(visualSlide.timerId); visualSlide = null; } aiThinking=false;
