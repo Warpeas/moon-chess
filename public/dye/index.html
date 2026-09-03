@@ -2187,7 +2187,8 @@ window.__moon_chess_showOnlineTip = function() {
         }
         const flipSet = new Set((res.flipped||[]).map(([rr,cc])=>rr+','+cc));
         render({ flipSet });
-        if (game.status === 'playing') scheduleAI();
+        // AI 走完一轮后：如果还没结束、且轮到 AI 连续走（极少见）——也别在这里自循环，
+        // 统一让 performUserAction / 首次 scheduleAI 的入口来驱动，避免无限递归。
       }, holdAtFinalMs);
     }, arriveAtFinalTime);
   }
