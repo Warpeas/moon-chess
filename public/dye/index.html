@@ -306,7 +306,7 @@ body::after {
   width: 100%;
   display: flex; align-items: center; justify-content: space-between;
   padding: 8px 16px;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
@@ -314,11 +314,14 @@ body::after {
   flex: 1 1 auto;
   min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  font-size: 18px;
+  font-weight: 700;
+  padding: 12px 24px;
+  text-align: center;
 }
 .game-header .game-actions {
   flex: 0 0 auto;
@@ -969,6 +972,19 @@ body::after {
   50% { filter: drop-shadow(0 8px 20px rgba(0,0,0,0.7)) drop-shadow(0 0 14px rgba(90,150,255,0.82)); }
 }
 
+/* AI 选中要移动的棋子（piece-select 步骤）：金绿色 outline 脉冲 */
+.piece.ai-selected {
+  outline: 3px solid rgba(130, 255, 180, 0.95);
+  outline-offset: 2px;
+  border-radius: 50%;
+  animation: aiSelPulse 0.9s ease-in-out infinite;
+  z-index: 4;
+}
+@keyframes aiSelPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(130,255,180,0.6), 0 0 24px rgba(255,255,255,0.25) inset; }
+  50%     { box-shadow: 0 0 0 8px rgba(130,255,180,0.0), 0 0 28px rgba(255,255,255,0.35) inset; }
+}
+
 /* 落子动效 */
 .piece.drop {
   animation: dropIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -979,18 +995,40 @@ body::after {
   100% { transform: scale(1) translateY(0); }
 }
 
-/* 移动滑动动画 */
+/* 移动动画：源位置淡出+缩小；目标位置渐入+弹入；两者叠加就是跨格移动的视觉 */
+.piece.slide-from {
+  animation: slideOut 280ms cubic-bezier(.4,0,.6,1) forwards;
+  filter: brightness(1.1) drop-shadow(0 0 12px rgba(120,255,200,0.3));
+  z-index: 4;
+}
+@keyframes slideOut {
+  0%   { transform: scale(1);   opacity: 1; }
+  100% { transform: scale(0.4); opacity: 0; }
+}
+.piece.slide-to {
+  animation: slideIn 380ms cubic-bezier(.2,1.4,.5,1) both;
+  filter: brightness(1.15) drop-shadow(0 0 16px rgba(120,255,200,0.35));
+  z-index: 4;
+}
+@keyframes slideIn {
+  0%   { transform: scale(0.35) translateY(-8px); opacity: 0; }
+  55%  { transform: scale(1.2)   translateY(2px); opacity: 1; }
+  100% { transform: scale(1)     translateY(0);   opacity: 1; }
+}
 .piece.sliding { animation: pieceSlide 320ms cubic-bezier(.25,1.4,.5,1) both; }
 @keyframes pieceSlide {
   from { transform: translate(calc(var(--dx,0) * -100%), calc(var(--dy,0) * -100%)); opacity: .55; }
   to   { transform: translate(0,0); opacity: 1; }
 }
 
-/* AI 思考候选提示（1~2 个位置循环切换，月蚀紫蓝主题色） */
+/* ============ AI 思考候选提示（落子：紫蓝；移动目标：青蓝；最终：金绿） ============ */
+/* 基础：绝对 left/top + width/height 确保正圆居中（避免 inset 在极端情况下变形） */
 .cell .think-candidate {
   position: absolute;
-  inset: 22%;
+  top: 22%; left: 22%;
+  width: 56%; height: 56%;
   border-radius: 50%;
+  aspect-ratio: 1 / 1;
   border: 2px solid rgba(120, 92, 255, 0.3);
   pointer-events: none;
   transition: all 0.25s ease;
@@ -1009,6 +1047,28 @@ body::after {
     0 0 12px rgba(76, 201, 240, 0.35),
     inset 0 0 8px rgba(157, 78, 221, 0.22);
   animation: candidatePulse 1.6s ease-in-out infinite;
+}
+/* 候选——虚假"移动目标"位置：青蓝色系，区别于 place */
+.cell .think-candidate.move-target-cand {
+  border-color: rgba(110, 230, 255, 0.35);
+}
+.cell .think-candidate.move-target-cand.dim {
+  border-color: rgba(110, 230, 255, 0.26);
+}
+.cell .think-candidate.move-target-cand.active {
+  border-color: rgba(110, 230, 255, 0.95);
+  box-shadow:
+    0 0 14px rgba(110, 230, 255, 0.42),
+    inset 0 0 10px rgba(110, 230, 255, 0.22);
+  animation: candidatePulse 1.6s ease-in-out infinite;
+}
+/* 候选——最终要下的位置（move to / place to）：金绿高亮点亮 */
+.cell .think-candidate.final.active {
+  border-color: rgba(255, 225, 120, 1);
+  box-shadow:
+    0 0 18px rgba(255, 205, 86, 0.65),
+    inset 0 0 12px rgba(255, 225, 120, 0.32);
+  animation: candidatePulse 1.4s ease-in-out infinite;
 }
 @keyframes candidatePulse {
   0%,100% { transform: scale(1.02); opacity: 0.78; }
@@ -1376,11 +1436,19 @@ window.__moon_chess_showOnlineTip = function() {
   let movingSel = null;    // {r,c} if user picked own piece for move
   let aiThinking = false;
   let aiTimer = null;
-  let slideInfo = null;    // {fromR,fromC,toR,toC} for slide animation
-  // AI 思考候选提示（1~2 个位置循环切换）
-  let aiCandidatesTimer = null;
-  let aiCandidates = [];          // [{r,c}, ...]  1~2 个位置
-  let aiCandidatesActiveIdx = 0;
+
+  // ==== AI 结构化思考步骤（对齐 B 模式）====
+  // 每个 step: { kind: 'place' | 'move-target' | 'piece-select' | 'final', r, c }
+  //   place 假位置、move-target 假目标：空格上的虚假候选圈
+  //   piece-select：跳到"要移动的棋子"上（给该棋子加 .ai-selected，不是空格圈）
+  //   final：最终要落子的位置（最亮金绿脉冲）
+  let aiThinkSteps = [];
+  let aiThinkActiveIdx = 0;
+  let aiStepTimers = [];     // 逐步切换定时器
+
+  // ==== 移动视觉（对齐 B 模式）====
+  // move 动作的跨格移动视觉：源位置 fadeOut+scale 消失，目标位置 slideIn+弹入
+  let visualSlide = null;    // { fromR, fromC, toR, toC, player, timerId }
 
   // ======================= Setup UI =======================
   function optPicker(id, cb) {
@@ -1733,58 +1801,93 @@ window.__moon_chess_showOnlineTip = function() {
       }
     }
 
-    // AI 候选位置集合快速查找：Set<"r,c"> + activeIdx 坐标
-    const candSet = new Set(aiCandidates.map(p => p.r+','+p.c));
-    const activeKey = (aiCandidates[aiCandidatesActiveIdx]) ? (aiCandidates[aiCandidatesActiveIdx].r+','+aiCandidates[aiCandidatesActiveIdx].c) : null;
+    // ==== 从 aiThinkSteps 建立 cellKey → { kind, active } 快速表（对齐 B 模式）====
+    // 单格同时出现多种时，优先级：piece-select（选中棋子） > final > move-target > place
+    const PRIO = { 'place': 1, 'move-target': 2, 'final': 3, 'piece-select': 4 };
+    const aiThinkMap = new Map();
+    for (let i = 0; i < aiThinkSteps.length; i++) {
+      const st = aiThinkSteps[i];
+      const kk = `${st.r}-${st.c}`;
+      const active = (i === aiThinkActiveIdx);
+      const prev = aiThinkMap.get(kk);
+      if (!prev || PRIO[st.kind] > PRIO[prev.kind] || (PRIO[st.kind] === PRIO[prev.kind] && active)) {
+        aiThinkMap.set(kk, { kind: st.kind, active });
+      }
+    }
 
-    // per-cell
+    // per-cell（逐格构建 DOM，AI 结构化候选 + visualSlide 移动动画）
     for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) {
       const el = cellAt(r,c);
       const v = game.board[r][c];
-      const key = v === 0 ? '0' : ('p'+v);
-      if (el.dataset._k !== key) {
-        el.innerHTML = '';
-        if (v !== 0) {
-          const p = document.createElement('div');
-          p.className = 'piece ' + (v===P1?'p1':'p2') + ' drop';
-          if (slideInfo && slideInfo.toR===r && slideInfo.toC===c) {
-            const dx = slideInfo.toC - slideInfo.fromC;
-            const dy = slideInfo.toR - slideInfo.fromR;
-            p.style.setProperty('--dx', dx.toFixed(1));
-            p.style.setProperty('--dy', dy.toFixed(1));
-            p.classList.remove('drop');
-            p.classList.add('sliding');
-            setTimeout(()=>{ p.classList.remove('sliding'); p.style.removeProperty('--dx'); p.style.removeProperty('--dy'); }, 360);
-          }
-          p.innerHTML = gemSVG(v);
-          el.appendChild(p);
-        }
-        el.dataset._k = key;
+      const k = `${r}-${c}`;
+
+      // 跨格移动视觉：源位置淡出缩小；目标位置渐入弹入
+      const isSlideFrom = visualSlide && visualSlide.fromR===r && visualSlide.fromC===c;
+      const isSlideTo   = visualSlide && visualSlide.toR===r   && visualSlide.toC===c;
+      const aiInfo = aiThinkMap.get(k);
+      // piece-select 是给"那个有棋子的 cell"里的 piece 加类，不是空格圈
+      const aiSelHere = aiInfo && aiInfo.kind === 'piece-select' && aiInfo.active;
+
+      // 生成签名 key，决定 DOM 是否重建
+      let key;
+      if (v !== 0 || isSlideFrom) {
+        const player = v !== 0 ? v : visualSlide.player;
+        const isSel = (movingSel && movingSel.r===r && movingSel.c===c) || aiSelHere || isSlideFrom;
+        key = 'p' + player + (isSel ? 'S' : '') + (aiSelHere ? 'AIS' : '') + (isSlideFrom ? 'SF' : '');
+      } else {
+        if (isSlideTo) key = 'sT' + visualSlide.player;
+        else if (!aiThinking && game.status==='playing' && game.current===cfg.me
+                 && validMoveDestBySel && validMoveDestBySel.has(r+','+c)) key = 'mT';
+        else if (aiInfo && (aiInfo.kind === 'place' || aiInfo.kind === 'move-target' || aiInfo.kind === 'final'))
+          key = 'aiC:' + aiInfo.kind + ':' + (aiInfo.active ? 'A' : 'D');
+        else key = 'e';
       }
+
+      if (el.dataset._k !== key) {
+        el.dataset._k = key;
+        el.innerHTML = '';
+
+        if (v !== 0 || isSlideFrom) {
+          const player = v !== 0 ? v : visualSlide.player;
+          const piece = document.createElement('div');
+          piece.className = 'piece ' + (player===P1?'p1':'p2');
+          if (isSlideFrom) {
+            piece.classList.add('slide-from');
+          } else {
+            piece.classList.add('drop');
+            requestAnimationFrame(() => piece.classList.remove('drop'));
+          }
+          if (aiSelHere) piece.classList.add('ai-selected');
+          piece.innerHTML = gemSVG(player);
+          el.appendChild(piece);
+        } else if (isSlideTo) {
+          const piece = document.createElement('div');
+          piece.className = 'piece ' + (visualSlide.player===P1?'p1':'p2') + ' slide-to';
+          piece.innerHTML = gemSVG(visualSlide.player);
+          el.appendChild(piece);
+        } else if (!aiThinking && game.status==='playing' && game.current===cfg.me
+                   && validMoveDestBySel && validMoveDestBySel.has(r+','+c)) {
+          // 玩家选中后：可移动目标（低调紫蓝细描边，由 CSS .move-hint 渲染）
+        } else if (aiInfo) {
+          // 空格上的 place / move-target / final 候选圈
+          const cv = document.createElement('div');
+          let cls = 'think-candidate ';
+          if (aiInfo.kind === 'place') cls += '';
+          else if (aiInfo.kind === 'move-target') cls += 'move-target-cand ';
+          else if (aiInfo.kind === 'final') cls += 'final ';
+          cls += aiInfo.active ? 'active' : 'dim';
+          cv.className = cls;
+          el.appendChild(cv);
+        }
+      }
+
+      // —— class 控制（不重建 DOM 只切 class）——
       el.classList.remove('place-hint','move-hint','selected','ending','flipping','disabled');
       if (extra.flipSet && extra.flipSet.has(r+','+c)) el.classList.add('flipping');
 
-      // AI 候选圈（只在空格上渲染）
-      const thinkCand = el.querySelector('.think-candidate');
-      const k = r+','+c;
-      if (candSet.has(k) && v === 0) {
-        const isActive = (k === activeKey);
-        if (!thinkCand) {
-          const tc = document.createElement('div');
-          tc.className = 'think-candidate ' + (isActive ? 'active' : 'dim');
-          el.appendChild(tc);
-        } else {
-          thinkCand.classList.remove('active','dim');
-          thinkCand.classList.add(isActive ? 'active' : 'dim');
-        }
-      } else if (thinkCand) {
-        thinkCand.remove();
-      }
-
       if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
         if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
-        // 选中后移动目标用低调的紫蓝细描边（与 AI 候选圈同色系但不发光）
-        if (validMoveDestBySel && validMoveDestBySel.has(k) && v === 0) el.classList.add('move-hint');
+        if (validMoveDestBySel && validMoveDestBySel.has(r+','+c) && v===0) el.classList.add('move-hint');
       } else {
         el.classList.add('disabled');
       }
@@ -1888,108 +1991,51 @@ window.__moon_chess_showOnlineTip = function() {
   function flashHint(t){ document.getElementById('hint').textContent = t; }
 
   function performUserAction(fn) {
-    slideInfo = null;
     const res = fn();
     if (!res || !res.ok) {
       flashHint('无法执行这一步');
       return;
     }
-    // 设置滑动动画信息：移动动作携带 fromR/fromC
+    // 玩家走的 move 动作：也用 visualSlide 实现 slide-from / slide-to 跨格动画
     if (res.fromR !== undefined && res.toR !== undefined) {
-      slideInfo = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC };
+      visualSlide = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC, player: cfg.me };
+      const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
+      render({ flipSet });
+      const t = setTimeout(() => { visualSlide = null; render(); }, 520);
+      visualSlide.timerId = t;
+      return;
     }
     const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
     render({ flipSet });
-    slideInfo = null;
     if (game.status === 'over') return;
     if (game.current !== cfg.me) scheduleAI();
   }
 
   // ======================= AI =======================
-  function clearAiCandidatesTimer() {
-    if (aiCandidatesTimer) { clearInterval(aiCandidatesTimer); aiCandidatesTimer = null; }
-    aiCandidates = [];
-    aiCandidatesActiveIdx = 0;
+  // ======================= AI =======================
+
+  function stopAiCandidateCycle() {
+    // 清掉所有 aiStepTimers 和 aiThinkSteps
+    for (const t of aiStepTimers) clearTimeout(t);
+    aiStepTimers = [];
+    aiThinkSteps = [];
+    aiThinkActiveIdx = 0;
   }
 
-  function scheduleAI() {
-    if (game.status !== 'playing') return;
-    aiThinking = true;
-    const player = cfg.me === P1 ? P2 : P1;
-
-    // 挑选 1~2 个候选动作的目标位置做脉冲提示（简化版）
-    const all = listAllActions(player);
-    if (all.length > 0) {
-      // 优先选高翻转数的前几个（与 std 评分近似）
-      const sorted = [...all].sort((a,b)=>b.flipCount-a.flipCount);
-      const pickN = Math.min(2, sorted.length);
-      // 从前几个（最多前 4 个好动作）中随机挑 pickN 个，避免永远固定在同一格
-      const pool = sorted.slice(0, Math.min(4, sorted.length));
-      const chosen = [];
-      for (let i=0; i<pickN; i++) {
-        const idx = Math.floor(Math.random()*pool.length);
-        const it = pool.splice(idx,1)[0];
-        chosen.push({ r: it.r, c: it.c });
-      }
-      aiCandidates = chosen;
-      aiCandidatesActiveIdx = 0;
-      // 切换 activeIdx 的定时器（只在有 2 个候选时切换）
-      if (aiCandidatesTimer) clearInterval(aiCandidatesTimer);
-      if (aiCandidates.length > 1) {
-        aiCandidatesTimer = setInterval(() => {
-          aiCandidatesActiveIdx = (aiCandidatesActiveIdx + 1) % aiCandidates.length;
-          if (!aiThinking) return;
-          // 只更新候选圈的 active/dim，避免整盘重渲染影响动画
-          const map = new Map();
-          aiCandidates.forEach((p,i) => map.set(p.r+','+p.c, i===aiCandidatesActiveIdx ? 'active' : 'dim'));
-          document.querySelectorAll('#board .cell').forEach(el => {
-            const tc = el.querySelector('.think-candidate');
-            const key = (el.dataset.r)+','+(el.dataset.c);
-            if (!map.has(key)) return;
-            if (!tc) {
-              const n = document.createElement('div');
-              n.className = 'think-candidate ' + map.get(key);
-              el.appendChild(n);
-            } else {
-              tc.classList.remove('active','dim');
-              tc.classList.add(map.get(key));
-            }
-          });
-        }, 1400);
-      }
-    }
-
-    render();
-    const wait = cfg.diff === 'easy' ? 650 + Math.random()*400 : 900 + Math.random()*600;
-    aiTimer = setTimeout(runAI, wait);
-  }
-
-  function runAI() {
-    // 先清理候选再思考落子
-    clearAiCandidatesTimer();
-    if (game.status !== 'playing') return;
-    const player = cfg.me === P1 ? P2 : P1;
+  function _pickAiAction(player) {
+    // 选一个 AI 要走的 action（对齐当前难度评分逻辑）
     const acts = listAllActions(player);
-    aiThinking = false;
-    if (acts.length === 0) {
-      // 新规则下只要存在空格必至少有一个 place 动作，所以 acts=0 等价于棋盘占满 & 没可动子 & 没空格 → 按结束直接结算
-      if (game.status === 'playing') { game.status = 'over'; game.result = majorityResult('双方无动作'); }
-      render();
-      return;
-    }
-
+    if (acts.length === 0) return null;
+    const diff = cfg.diff;
     let chosen;
-    if (cfg.diff === 'easy') {
-      // 60% 完全随机；40% 走"赢的立即动作/翻≥2子"70%把握，其余仍随机
+    if (diff === 'easy') {
       if (Math.random() < 0.60) {
         chosen = acts[Math.floor(Math.random()*acts.length)];
       } else {
-        // see any action that yields instant win condition? 70% take it
         const instant = acts.filter(a => isWinningAction(a, player));
         if (instant.length && Math.random() < 0.7) {
           chosen = instant[Math.floor(Math.random()*instant.length)];
         } else {
-          // 40% chance to top 2 flip counts; else random
           if (Math.random() < 0.4) {
             const sorted = [...acts].sort((a,b)=>b.flipCount-a.flipCount);
             const top = sorted.slice(0, Math.min(2, sorted.length));
@@ -1999,8 +2045,7 @@ window.__moon_chess_showOnlineTip = function() {
           }
         }
       }
-    } else { // std
-      // Score each: flipCount*10 + posScore(r,c) + riskFlipLoss*5 + (immediateWin? 9999)
+    } else {
       const scored = acts.map(a => {
         const snap = snapshot();
         applyAction(a, player);
@@ -2009,17 +2054,15 @@ window.__moon_chess_showOnlineTip = function() {
         if (game.status === 'playing') {
           const opp = listAllActions(player===P1?P2:P1);
           for (const o of opp) if (o.flipCount > oppBest) oppBest = o.flipCount;
-          // opponent's biggest counter-advantage (opponent flips − our next net flip)
           if (opp.some(o => isWinningAction(o, player===P1?P2:P1))) oppBest += 6;
         }
         const posS = posScore(a.r, a.c);
         restore(snap);
-        let s = a.flipCount * 10 + posS - oppBest * 6 + (winNow ? 9999 : 0);
-        s += Math.random() * 0.5;
-        return { a, s };
+        let score = a.flipCount * 10 + posS - oppBest * 6 + (winNow ? 9999 : 0);
+        score += Math.random() * 0.5;
+        return { a, score };
       });
-      scored.sort((x,y)=>y.s-x.s);
-      // 15% randomness: pick top 3 at random
+      scored.sort((x,y)=>y.score-x.score);
       if (Math.random() < 0.15) {
         const top = scored.slice(0, Math.min(3, scored.length));
         chosen = top[Math.floor(Math.random()*top.length)].a;
@@ -2027,21 +2070,127 @@ window.__moon_chess_showOnlineTip = function() {
         chosen = scored[0].a;
       }
     }
-
-    // Execute chosen
-    let res;
-    slideInfo = null;
-    if (chosen.kind === 'place') res = doPlace(chosen.r, chosen.c, player);
-    else res = doMove(chosen.fromR, chosen.fromC, chosen.r, chosen.c, player);
-    if (res && res.ok && res.fromR !== undefined && res.toR !== undefined) {
-      slideInfo = { fromR: res.fromR, fromC: res.fromC, toR: res.toR, toC: res.toC };
-    }
-    aiThinking = false;
-    const flipSet = new Set((res.flipped||[]).map(([r,c])=>r+','+c));
-    render({ flipSet });
-    slideInfo = null;
+    return chosen;
   }
 
+  function scheduleAI() {
+    if (game.status !== 'playing') return;
+    aiThinking = true;
+    const player = cfg.me === P1 ? P2 : P1;
+
+    const action = _pickAiAction(player);
+    if (!action) {
+      aiThinking = false;
+      if (game.status === 'playing') { game.status = 'over'; game.result = majorityResult('双方无动作'); }
+      render();
+      return;
+    }
+
+    // ===== 构造结构化思考步骤（对齐 B 模式）=====
+    //   place 动作：[place 假]*0~1 → [final 真实落点]
+    //   move  动作：[place 假]*0~2 → [piece-select 选中要移动的棋子] → [move-target 假目标]*0~1 → [final 真实移动目标]
+    const steps = [];
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    // 所有空格（place 假位置池）
+    const allEmpties = [];
+    for (let rr = 0; rr < SIZE; rr++) for (let cc = 0; cc < SIZE; cc++) {
+      if (game.board[rr][cc] === 0) allEmpties.push({ r: rr, c: cc });
+    }
+
+    if (action.kind === 'place') {
+      const fakePool = shuffle(allEmpties.filter(p => !(p.r===action.r && p.c===action.c)));
+      const fakeCount = Math.min(fakePool.length, Math.random() < 0.5 ? 1 : 0);
+      for (let i = 0; i < fakeCount; i++) {
+        steps.push({ kind: 'place', r: fakePool[i].r, c: fakePool[i].c });
+      }
+      steps.push({ kind: 'final', r: action.r, c: action.c });
+    } else {
+      // Move 动作
+      const fromR = action.fromR, fromC = action.fromC;
+      const toR = action.r, toC = action.c;
+      const fakePlacePool = shuffle(allEmpties.filter(p => !(p.r===toR && p.c===toC) && !(p.r===fromR && p.c===fromC)));
+      const placeFakeCount = Math.max(0, Math.min(fakePlacePool.length, Math.random() < 0.35 ? 0 : (Math.random() < 0.7 ? 1 : 2)));
+      for (let i = 0; i < placeFakeCount; i++) {
+        steps.push({ kind: 'place', r: fakePlacePool[i].r, c: fakePlacePool[i].c });
+      }
+      // 阶段 2：piece-select —— 跳到要移动的棋子上（给那颗棋子加 .ai-selected）
+      steps.push({ kind: 'piece-select', r: fromR, c: fromC });
+      // 阶段 3：最多 1 个虚假 move-target
+      const validTargets = moveNeighbors(fromR, fromC, cfg.moveK);
+      const fakeTargetPool = shuffle(validTargets.filter(t => !(t[0]===toR && t[1]===toC)));
+      if (fakeTargetPool.length > 0 && Math.random() < 0.7) {
+        steps.push({ kind: 'move-target', r: fakeTargetPool[0][0], c: fakeTargetPool[0][1] });
+      }
+      // 阶段 4：final —— 真实移动目标
+      steps.push({ kind: 'final', r: toR, c: toC });
+    }
+
+    aiThinkSteps = steps;
+    aiThinkActiveIdx = 0;
+    stopAiCandidateCycle();
+
+    // ===== 时间线 =====
+    const N = steps.length;
+    const stepPeriod = 280;        // 每步停留时间 ms
+    const firstStay = 0;           // 立即从第 0 步开始
+    const switches = Math.max(0, N - 1);
+
+    render();
+    aiStepTimers = [];
+    for (let k = 1; k <= switches; k++) {
+      const fireAt = firstStay + k * stepPeriod;
+      const stepIdx = k;
+      const t = setTimeout(() => {
+        aiThinkActiveIdx = stepIdx;
+        render();
+      }, fireAt);
+      aiStepTimers.push(t);
+    }
+    const arriveAtFinalTime = firstStay + switches * stepPeriod;
+    const holdAtFinalMs = 420;
+
+    // ===== 执行真实着法 =====
+    aiTimer = setTimeout(() => {
+      if (aiThinkActiveIdx !== N - 1) {
+        aiThinkActiveIdx = N - 1;
+        render();
+      }
+      // 在 final 位再 hold 一会儿让玩家看清
+      aiTimer = setTimeout(() => {
+        stopAiCandidateCycle();
+        aiThinking = false;
+
+        // 执行并设置 visualSlide（让跨格移动动画生效）
+        let res;
+        if (action.kind === 'place') {
+          res = doPlace(action.r, action.c, player);
+        } else {
+          const fromR = action.fromR, fromC = action.fromC;
+          const toR = action.r, toC = action.c;
+          res = doMove(fromR, fromC, toR, toC, player);
+          if (res && res.ok) {
+            visualSlide = { fromR, fromC, toR, toC, player };
+            // visualSlide 会在 render 里触发 slide-from / slide-to
+            const t2 = setTimeout(() => {
+              visualSlide = null;
+              render();
+            }, 520);
+            visualSlide.timerId = t2;
+          }
+        }
+        const flipSet = new Set((res.flipped||[]).map(([rr,cc])=>rr+','+cc));
+        render({ flipSet });
+        if (game.status === 'playing') scheduleAI();
+      }, holdAtFinalMs);
+    }, arriveAtFinalTime);
+  }
   function posScore(r,c) {
     if (SIZE === 3) {
       // center (1,1) -> 5; corners -> 3; edges -> 2
@@ -2091,7 +2240,7 @@ window.__moon_chess_showOnlineTip = function() {
   document.getElementById('btnBannerExit').addEventListener('click', backToSetup);
 
   function backToSetup() {
-    clearTimeout(aiTimer); clearAiCandidatesTimer(); aiThinking=false;
+    clearTimeout(aiTimer); stopAiCandidateCycle(); if(visualSlide) { clearTimeout(visualSlide.timerId); visualSlide = null; } aiThinking=false;
     document.getElementById('game').classList.remove('show');
     (document.getElementById('menu').classList.add('show'), document.getElementById('game').classList.remove('show'));
     setScrollLock(false);
@@ -2101,8 +2250,7 @@ window.__moon_chess_showOnlineTip = function() {
     game = newGame();
     movingSel = null;
     aiThinking = false;
-    slideInfo = null;
-    clearTimeout(aiTimer); clearAiCandidatesTimer();
+    stopAiCandidateCycle(); clearTimeout(aiTimer); if(visualSlide) { clearTimeout(visualSlide.timerId); visualSlide = null; }
     buildBoardDOM();
     render();
     setScrollLock(true);
