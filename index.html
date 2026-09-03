@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<meta name="theme-color" content="#0b0821" />
+<title>Moon Chess · 月蚀棋 · 模式选择</title>
+<style>
+  :root {
+    --bg-0: #05041a;
+    --bg-1: #0e0c2c;
+    --bg-2: #1a1544;
+    --line: rgba(190,170,255,.22);
+    --text: #f2edff;
+    --sub: #a9a1d8;
+    --p1: #ffd9ee; --p1-glow: #ff78c8;
+    --p2: #7a71ff; --p2-glow: #8cc6ff;
+    --accent: #ff5577;
+    --ok: #51e898;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;min-height:100%;color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+    background:
+      radial-gradient(1200px 700px at 50% -10%, #2a2370 0%, #130f3a 45%, var(--bg-0) 80%);
+  }
+  .stars{position:fixed;inset:0;pointer-events:none;opacity:.6;z-index:0;
+    background:
+      radial-gradient(1px 1px at 10% 20%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 30% 80%, #fff 99%, transparent),
+      radial-gradient(1.5px 1.5px at 60% 40%, #d9cfff 99%, transparent),
+      radial-gradient(1px 1px at 80% 10%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 70% 75%, #fff 99%, transparent),
+      radial-gradient(1.5px 1.5px at 20% 55%, #c8b6ff 99%, transparent),
+      radial-gradient(1px 1px at 50% 15%, #fff 99%, transparent),
+      radial-gradient(1px 1px at 90% 60%, #d9cfff 99%, transparent);
+    background-size:500px 500px;
+    animation:drift 180s linear infinite;
+  }
+  @keyframes drift { to{ transform:translate(-200px,-120px); } }
+  .wrap{position:relative;z-index:1;max-width:640px;margin:0 auto;padding:28px 18px 40px}
+  header{text-align:center;margin:8px 0 22px}
+  .brand{display:inline-flex;align-items:center;gap:10px}
+  .logo{width:36px;height:36px;border-radius:10px;
+    background:conic-gradient(from 40deg, #ffd9ee, #ff78c8, #7a71ff, #8cc6ff, #ffd9ee);
+    filter:saturate(1.1);position:relative}
+  .logo::after{content:"";position:absolute;inset:4px;border-radius:7px;background:#0e0c2c;box-shadow:inset 0 0 12px rgba(0,0,0,.4)}
+  h1{margin:10px 0 4px;font-size:26px;letter-spacing:2px}
+  .sub{color:var(--sub);font-size:13px}
+  .cards{display:flex;flex-direction:column;gap:14px;margin-top:18px}
+  .card{position:relative;background:linear-gradient(180deg,rgba(26,21,68,.85),rgba(14,12,44,.78));
+    border:1px solid var(--line);border-radius:16px;padding:16px 16px 14px;cursor:pointer;
+    box-shadow:0 10px 26px rgba(0,0,0,.35);transition:all .18s ease;overflow:hidden}
+  .card:hover{transform:translateY(-2px);border-color:rgba(255,120,200,.45)}
+  .card::before{content:"";position:absolute;inset:-1px;border-radius:16px;pointer-events:none;opacity:0;
+    background:linear-gradient(120deg,rgba(255,120,200,.35),rgba(122,113,255,.3),transparent 60%);transition:opacity .2s ease}
+  .card:hover::before{opacity:1}
+  .row{display:flex;align-items:center;gap:14px}
+  .thumb{width:78px;height:78px;flex-shrink:0;border-radius:14px;background:
+    linear-gradient(135deg,#1f1a4d,#2a2466);border:1px solid var(--line);
+    display:grid;place-items:center;padding:12px}
+  .board-mini{width:100%;height:100%;display:grid;gap:3px}
+  .board-mini.b3{grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr)}
+  .board-mini.b4{grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr)}
+  .mc{border-radius:4px;background:rgba(160,150,220,.12);position:relative}
+  .mc.p1::after{content:"";position:absolute;inset:12%;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, #fff 0%, var(--p1) 55%, var(--p1-glow) 100%);
+    box-shadow:0 0 8px rgba(255,120,200,.5)}
+  .mc.p2::after{content:"";position:absolute;inset:12%;border-radius:50%;
+    background:radial-gradient(circle at 30% 30%, #d6f1ff 0%, var(--p2) 55%, var(--p2-glow) 100%);
+    box-shadow:0 0 8px rgba(122,113,255,.55)}
+  .mc.warn::after{animation:warn 1s steps(2,end) infinite}
+  @keyframes warn { 0%,50%{opacity:.18} 50.01%,100%{opacity:1} }
+  .meta{flex:1;min-width:0}
+  .title{font-size:17px;font-weight:700;display:flex;align-items:center;gap:8px}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:rgba(122,113,255,.2);color:#c9c3ff;border:1px solid rgba(122,113,255,.35)}
+  .badge.a{background:rgba(81,232,152,.14);color:#9df3c7;border-color:rgba(81,232,152,.3)}
+  .badge.b{background:rgba(255,120,200,.14);color:#ffc8e7;border-color:rgba(255,120,200,.3)}
+  .desc{color:var(--sub);font-size:13px;line-height:1.6;margin-top:6px}
+  .cta{display:inline-block;margin-top:10px;padding:6px 12px;border-radius:10px;
+    background:linear-gradient(180deg,#ff7a97,#e53f66);color:#fff;font-size:12px;font-weight:700;letter-spacing:.5px;
+    box-shadow:0 6px 14px rgba(229,63,102,.25)}
+  .foot{margin-top:24px;text-align:center;color:var(--sub);font-size:12px}
+  @media (max-width:380px){
+    .thumb{width:66px;height:66px}
+    .title{font-size:16px}
+  }
+</style>
+</head>
+<body>
+<div class="stars"></div>
+<div class="wrap">
+  <header>
+    <div class="brand"><div class="logo"></div><span style="font-weight:700;letter-spacing:2px">Moon Chess</span></div>
+    <h1>🌓 月蚀棋 · 模式选择</h1>
+    <div class="sub">三种规则。同一棋盘美学。点击卡片进入对应规则对局。</div>
+  </header>
+
+  <div class="cards" id="cards"></div>
+
+  <div class="foot">· Warpeas · GitHub Pages 根路由模式选择 · moon-chess ·</div>
+</div>
+
+<script>
+(() => {
+  // 统一模式选择页路径：把 .../index.html 收敛为目录根（/moon-chess/），避免两种 URL 并存
+  const REPO = '/moon-chess/';
+  if (location.pathname.startsWith(REPO) && /(^|\/)index\.html$/.test(location.pathname)) {
+    history.replaceState(null, '', location.pathname.replace(/index\.html$/, '') + location.search + location.hash);
+  }
+  const cards = [
+    {
+      id: 'yuanshen',
+      tag: 'A · 原神原版',
+      cls: 'a',
+      title: '原神原版月亮棋',
+      short: '3×3 · 先连 3 子胜 · 每方最多同时 3 颗；轮到己方时己方最早子闪烁，放新子后己方最早子消失',
+      href: 'standalone/',
+      preview: [
+        [1, 2, 0],
+        [2, 1, 0],
+        [1, 0, 2],
+      ],
+      // 规则示例：P1 已满 3（(0,0) (1,1) (2,0)），(0,0) 最早 → 闪烁警告
+      warn: '0,0',
+    },
+    {
+      id: 'movable',
+      tag: 'B · 原版 + 可移动',
+      cls: 'b',
+      title: '原版 + 可移动（4 邻）',
+      short: '原神原版 UI/规则 全部保留，再追加「移动」操作：点击己方棋子选中 → 点击 4 邻空格完成移动；移动也算一次操作，同样触发闪烁→消失链',
+      href: 'movable/',
+      preview: [
+        [1, 2, 0],
+        [0, 1, 2],
+        [2, 0, 1],
+      ],
+      warn: null,
+    },
+    {
+      id: 'dye',
+      tag: 'C · 染色版',
+      cls: '',
+      title: '蚀染模式（夹击染子 · 子多者胜）',
+      short: '空棋盘开局；点击空格 = 放子，点击己方棋子 = 选中移动；落位时 8 向夹击染对方为己方；支持 3×3 / 4×4、对局内切 4 / 8 邻移动',
+      href: 'dye/',
+      preview: [
+        [1, 2, 2, 1],
+        [2, 1, 1, 2],
+        [2, 1, 1, 2],
+        [1, 2, 2, 1],
+      ],
+      warn: null,
+    },
+  ];
+
+  function makeMini(data, warn) {
+    const n = data.length;
+    const cells = [];
+    const warnKey = warn || '';
+    for (let r=0;r<n;r++) for (let c=0;c<n;c++) {
+      const v = data[r][c];
+      const cls = 'mc' + (v===1?' p1':v===2?' p2':'') + (warnKey===(r+','+c)?' warn':'');
+      cells.push('<div class="'+cls+'"></div>');
+    }
+    return `<div class="board-mini b${n}">${cells.join('')}</div>`;
+  }
+
+  const root = document.getElementById('cards');
+  root.innerHTML = cards.map(c => `
+    <a class="card" href="${c.href}" style="text-decoration:none;color:inherit">
+      <div class="row">
+        <div class="thumb">${makeMini(c.preview, c.warn)}</div>
+        <div class="meta">
+          <div class="title">${c.title}<span class="badge ${c.cls}">${c.tag}</span></div>
+          <div class="desc">${c.short}</div>
+          <div class="cta">进入 ▸</div>
+        </div>
+      </div>
+    </a>
+  `).join('');
+})();
+</script>
+</body>
+</html>
