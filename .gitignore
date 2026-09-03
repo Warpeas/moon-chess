@@ -7,3 +7,4 @@ dist/
 *.log
 .idea/
 .vscode/
+.trae-html-share-packages/
