@@ -866,6 +866,8 @@ body::after {
 }
 
 .dye-hint {
+  /* 与 AB 模式对齐：对局中无额外 hint 条，状态由顶部 turn-indicator 和棋盘本身传达 */
+  display: none;
   font-size: 12px; color: #b6addd; margin: 6px 0 8px; min-height: 16px;
   text-align: center;
 }
@@ -921,15 +923,15 @@ body::after {
   background: var(--cell-hi);
 }
 .cell.place-hint::after {
-  content: ''; position: absolute; inset: 25%; border-radius: 50%;
-  border: 2px dashed rgba(255,255,255,.2);
+  /* 已废弃：玩家回合不再全局标注空格，保持与 AB 一致的干净棋盘 */
+  display: none;
 }
 .cell.move-hint::after {
-  content: ''; position: absolute; inset: 18%; border-radius: 12px;
-  border: 2px dashed rgba(122,220,170,.6);
-  background: rgba(81,232,152,.1);
+  content: ''; position: absolute; inset: 22%; border-radius: 10px;
+  border: 1.5px dashed rgba(157, 120, 255, 0.5);
+  background: rgba(120, 92, 255, 0.08);
 }
-.cell.selected { box-shadow: 0 0 0 2px #51e898, 0 0 18px rgba(81,232,152,.3); }
+.cell.selected { box-shadow: 0 0 0 2px rgba(157, 78, 221, 0.7), 0 0 18px rgba(157, 78, 221, 0.25); }
 .cell.flipping { animation: cellFlip 500ms ease; }
 @keyframes cellFlip { 0%{transform:scale(1);} 30%{transform:scale(.4);opacity:.55;} 60%{transform:scale(.4);opacity:.55;} 100%{transform:scale(1);} }
 .cell.disabled { cursor: not-allowed; pointer-events: none; }
@@ -1722,22 +1724,12 @@ window.__moon_chess_showOnlineTip = function() {
     // 棋盘整体禁用：AI 思考中 / 对局结束
     boardEl.classList.toggle('disabled', aiThinking || game.status !== 'playing');
 
-    // 提示高亮集合
-    let validPlaceSet = null, validMoveDestBySel = null, myPiecesMovable = new Set();
-    if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
-      validPlaceSet = new Set();
-      for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===0) validPlaceSet.add(r+','+c);
-      myPiecesMovable = new Set();
-      for (let r=0;r<SIZE;r++) for (let c=0;c<SIZE;c++) if (game.board[r][c]===cfg.me) {
-        if (moveNeighbors(r,c, cfg.moveK).length > 0) myPiecesMovable.add(r+','+c);
-      }
-      validMoveDestBySel = {};
-      if (movingSel) {
-        const s = movingSel.r+','+movingSel.c;
-        validMoveDestBySel[s] = new Set();
-        for (const [nr,nc] of moveNeighbors(movingSel.r, movingSel.c, cfg.moveK)) {
-          validMoveDestBySel[s].add(nr+','+nc);
-        }
+    // 提示高亮集合：只在玩家回合计算，去掉"所有空格都标虚线圆"的place-hint，保持与 AB 视觉一致
+    let validMoveDestBySel = null;
+    if (!aiThinking && game.status==='playing' && game.current === cfg.me && movingSel) {
+      validMoveDestBySel = new Set();
+      for (const [nr,nc] of moveNeighbors(movingSel.r, movingSel.c, cfg.moveK)) {
+        validMoveDestBySel.add(nr+','+nc);
       }
     }
 
@@ -1791,9 +1783,8 @@ window.__moon_chess_showOnlineTip = function() {
 
       if (!aiThinking && game.status==='playing' && game.current === cfg.me) {
         if (movingSel && movingSel.r===r && movingSel.c===c) el.classList.add('selected');
-        const dests = validMoveDestBySel ? validMoveDestBySel[movingSel && (movingSel.r+','+movingSel.c)] : null;
-        if (dests && dests.has(k)) el.classList.add('move-hint');
-        else if (v === 0 && validPlaceSet && validPlaceSet.has(k)) el.classList.add('place-hint');
+        // 选中后移动目标用低调的紫蓝细描边（与 AI 候选圈同色系但不发光）
+        if (validMoveDestBySel && validMoveDestBySel.has(k) && v === 0) el.classList.add('move-hint');
       } else {
         el.classList.add('disabled');
       }
