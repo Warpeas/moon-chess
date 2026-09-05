@@ -228,9 +228,34 @@ body::after {
 .rules-hint b { color: var(--accent-3); }
 
 .menu-buttons {
-  display: flex; flex-direction: column; gap: 10px;
-  margin-top: 16px; width: 100%; max-width: 320px;
+  width: 100%;
+  max-width: 340px;
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+  grid-template-areas:
+    "btn-local btn-ai"
+    "btn-create btn-join"
+    "btn-other btn-other";
 }
+.menu-buttons .btn {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.menu-buttons .btn-icon { font-size: 14px; }
+.menu-buttons .btn[for-layout="local"]   { grid-area: btn-local; }
+.menu-buttons .btn[for-layout="ai"]      { grid-area: btn-ai; }
+.menu-buttons .btn[for-layout="create"]  { grid-area: btn-create; }
+.menu-buttons .btn[for-layout="join"]    { grid-area: btn-join; }
+.menu-buttons .btn[for-layout="other"]   { grid-area: btn-other; }
 
 .footer {
   margin-top: 14px;
@@ -824,7 +849,7 @@ body::after {
   .big-gem { width: 68px; height: 68px; margin-bottom: 6px; }
   .subtitle { margin: 2px 0 6px; font-size: 10.5px; }
   .rules-hint { padding: 6px 10px; font-size: 10.5px; margin-bottom: 6px; }
-  .menu-buttons { margin-top: 10px; gap: 8px; max-width: 260px; }
+  .menu-buttons { margin-top: 10px; gap: 7px; max-width: 280px; }
   .btn { padding: 9px 14px; font-size: 13px; }
   .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
   .game-wrap { gap: 12px; }
@@ -833,7 +858,7 @@ body::after {
 
 /* ============ 桌面大屏 ============ */
 @media (min-width: 1024px) {
-  .menu-buttons { max-width: 340px; }
+  .menu-buttons { max-width: 400px; gap: 12px; }
   .board { width: 440px; height: 440px; }
   .big-gem { width: 110px; height: 110px; }
   .hero h1 { font-size: 40px; }
@@ -931,16 +956,19 @@ body::after {
     </div>
 
     <div class="menu-buttons">
-      <button class="btn primary" id="btn-local">
-        <span class="btn-icon">✦</span> 单机对战
+      <button class="btn" id="btn-local" for-layout="local">
+        <span class="btn-icon">♙</span> 本地对战
       </button>
-      <button class="btn" id="btn-online-create">
+      <button class="btn primary" id="btn-ai" for-layout="ai">
+        <span class="btn-icon">✦</span> AI 对战
+      </button>
+      <button class="btn" id="btn-online-create" for-layout="create">
         <span class="btn-icon">◈</span> 创建联机房间
       </button>
-      <button class="btn" id="btn-online-join">
+      <button class="btn" id="btn-online-join" for-layout="join">
         <span class="btn-icon">◇</span> 加入房间
       </button>
-      <a class="btn" href="../index.html" style="text-decoration:none;text-align:center">
+      <a class="btn" href="../index.html" for-layout="other" style="text-decoration:none;text-align:center">
         <span class="btn-icon">◇</span> 其他模式
       </a>
     </div>
@@ -1681,7 +1709,8 @@ const App = {
     }
 
     // 菜单按钮
-    safeGet('btn-local')?.addEventListener('click', () => this.showDifficultySelect());
+    safeGet('btn-local')?.addEventListener('click', () => this.startPvp());
+    safeGet('btn-ai')?.addEventListener('click', () => this.showDifficultySelect());
     safeGet('btn-online-create')?.addEventListener('click', () => this.createRoom());
     safeGet('btn-online-join')?.addEventListener('click', () => this.showJoinDialog());
 
@@ -1863,6 +1892,34 @@ const App = {
     if (this.state.status === 'playing' && this.state.current === aiPlayer) {
       this.scheduleAiMove(aiPlayer);
     }
+  },
+
+  startPvp() {
+    this.mode = 'pvp';
+    this.difficulty = null;
+    this.playerSide = null;
+    this.setScrollLock(true);
+    this.local = new LocalGame();
+    this.state = this.local.snapshot();
+    this.selected = null;
+    this.visualSlide = null;
+    this.clearAiTimer(true);
+    this.aiCandidates = [];
+    this.stopAiCandidateCycle();
+    this.clearRemovingVisual(false);
+    this._resetCellRenderKeys();
+    this.rematch = { status: 'none', byHost: false, guestResponse: null };
+    safeGet('menu')?.classList.remove('show');
+    safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('side-select')?.classList.remove('show');
+    safeGet('game')?.classList.add('show');
+    safeGet('room-info')?.classList.remove('show');
+    this.hideDialogs();
+    this.hideRematchBar();
+    this.hideEndBanner();
+    this.setBoardDisabled(false);
+    this.updateRestartButton();
+    this.render();
   },
 
   hideDialogs() {
@@ -2119,15 +2176,16 @@ const App = {
     const again = safeGet('btn-end-again');
     if (!btn) return;
 
-    if (this.mode === 'local') {
+    if (this.mode === 'local' || this.mode === 'pvp') {
       btn.textContent = '↻ 重开';
       btn.disabled = false;
-      // 单机永远隐藏重开投票条
+      // 单机/PVP 永远隐藏重开投票条
       this.hideRematchBar();
-      // end-banner 的「再来一局」在单机始终是"再来一局"，不区分 pending 与否
+      // end-banner 的「再来一局」在单机/PVP 始终是"再来一局"，不区分 pending 与否
       if (again) {
         again.textContent = '再来一局';
         again.disabled = false;
+        again.style.display = '';
       }
       return;
     }
@@ -2222,6 +2280,78 @@ const App = {
   // ==================== 点击处理 ====================
   handleCellClick(row, col) {
     if (!this.state || this.state.status !== 'playing') return;
+
+    if (this.mode === 'pvp') {
+      const cur = this.state.current;   // 1 = WHITE(先)  2 = BLACK(后)
+      const cellVal = this.local.board[row][col];
+
+      // 已选中棋子
+      if (this.selected) {
+        // 再点同一颗己方棋子 = 退出移动模式
+        if (cellVal === cur && this.selected.row === row && this.selected.col === col) {
+          this.selected = null;
+          this.render();
+          return;
+        }
+        // 再点另一个己方棋子 = 切换选中
+        if (cellVal === cur) {
+          this.selected = { row, col };
+          this.render();
+          return;
+        }
+        // 点空格：
+        //   1) 若是当前选中棋子合法 4 邻目标 → 移动
+        //   2) 非合法目标位置 → 退出移动模式（不再视为落子）
+        if (cellVal === 0) {
+          const targets = this.local.validMovesOf(cur, this.selected.row, this.selected.col);
+          const isTarget = targets.some(t => t.row === row && t.col === col);
+          if (isTarget) {
+            const from = { row: this.selected.row, col: this.selected.col };
+            const to = { row, col };
+            const res = this.local.move(from, to, cur);
+            if (!res.ok) return;
+            this.selected = null;
+            this.visualSlide = { player: cur, from, to, timerId: null };
+            this.state = this.local.snapshot();
+            if (res.removed) this.stageRemovingVisual(res.removed);
+            this.updateRestartButton();
+            this.render();
+            // 清理视觉滑入
+            const t = setTimeout(() => { this.visualSlide = null; this.render(); }, 600);
+            this.visualSlide.timerId = t;
+            return;
+          } else {
+            // 非合法目标位置 = 退出移动模式
+            this.selected = null;
+            this.render();
+            return;
+          }
+        }
+        // 点对方子：退出移动模式
+        this.selected = null;
+        this.render();
+        return;
+      }
+
+      // 未选中：
+      if (cellVal === cur) {
+        // 选中己方棋子
+        this.selected = { row, col };
+        this.render();
+        return;
+      }
+      if (cellVal === 0) {
+        // 空格直接落子
+        const res = this.local.place(row, col, cur);
+        if (!res.ok) return;
+        this.state = this.local.snapshot();
+        if (res.removed) this.stageRemovingVisual(res.removed);
+        this.updateRestartButton();
+        this.render();
+        return;
+      }
+      return;
+    }
 
     if (this.mode === 'local') {
       const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
@@ -2455,6 +2585,29 @@ const App = {
 
   // 顶部重开 / 结束横幅「再来一局」共用
   handleRestart() {
+    if (this.mode === 'pvp') {
+      // 只要一个标题"再开一局"，去掉描述句子
+      this.showConfirm({
+        title: '再开一局',
+        desc: '',
+        onYes: () => {
+          this.clearAiTimer(true);
+          this.stopAiCandidateCycle();
+          this.clearRemovingVisual(false);
+          this._resetCellRenderKeys();
+          this.selected = null;
+          this.visualSlide = null;
+          this.local.reset();
+          this.state = this.local.snapshot();
+          this.hideEndBanner();
+          this.setBoardDisabled(false);
+          this.updateRestartButton();
+          this.render();
+        }
+      });
+      return;
+    }
+
     if (this.mode === 'local') {
       // 只要一个标题"再开一局"，去掉描述句子
       this.showConfirm({
@@ -2672,6 +2825,8 @@ const App = {
 
     if (this.state.status === 'ended') {
       this.setBoardDisabled(true);
+    } else if (this.mode === 'pvp') {
+      this.setBoardDisabled(false);
     } else if (this.mode === 'local') {
       this.setBoardDisabled(!!this.aiTimer || this.state.current !== humanPlayer);
     }
@@ -2684,7 +2839,7 @@ const App = {
       else this.hideRematchBar();
     } else {
       this.hideEndBanner();
-      if (this.mode === 'local') {
+      if (this.mode === 'local' || this.mode === 'pvp') {
         this.hideRematchBar();
       } else if (this.rematch.status === 'none') {
         this.hideRematchBar();
@@ -2711,6 +2866,9 @@ const App = {
         const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
         label = (w === humanPlayer) ? '本方胜利！ 🎉' : 'AI胜利！';
         miniGem = this._miniGemSVG(w === humanPlayer ? humanPlayer : (this.playerSide === 'white' ? BLACK : WHITE));
+      } else if (this.mode === 'pvp') {
+        label = (w === WHITE) ? '白方胜利！ 🎉' : '黑方胜利！ 🎉';
+        miniGem = this._miniGemSVG(w);
       } else {
         // online 视角：本方 / 对方
         label = (w === this.mySeat) ? '本方胜利！ 🎉' : '对方胜利！';
@@ -2726,6 +2884,9 @@ const App = {
         label = 'AI 思考中';
         dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
       }
+    } else if (this.mode === 'pvp') {
+      miniGem = this._miniGemSVG(cur);
+      label = (cur === WHITE) ? '白方下' : '黑方下';
     } else if (this.mode === 'online') {
       miniGem = this._miniGemSVG(this.mySeat);
       label = cur === this.mySeat ? '你的回合' : '对方回合';
@@ -2734,9 +2895,9 @@ const App = {
       label = cur === WHITE ? '白方回合' : '黑方回合';
     }
     el.innerHTML = miniGem + label + dotHtml;
-    // 颜色：本地/联机都根据 cur 选用白色类或黑色类（white/black），ended 保持中性 white
+    // 颜色：本地/联机/pvp 都根据 cur 选用白色类或黑色类（white/black），ended 保持中性
     if (this.state.status === 'ended') el.className = 'turn-indicator ended';
-    else if (this.mode === 'local') el.className = 'turn-indicator ' + ((cur === WHITE) ? 'white' : 'black');
+    else if (this.mode === 'local' || this.mode === 'pvp') el.className = 'turn-indicator ' + ((cur === WHITE) ? 'white' : 'black');
     else el.className = 'turn-indicator ' + ((cur === this.mySeat) ? 'white' : 'black');
   },
 

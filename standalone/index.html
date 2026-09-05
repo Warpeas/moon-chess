@@ -306,9 +306,34 @@ body::after {
 }
 
 .menu-buttons {
-  display: flex; flex-direction: column; gap: 10px;
-  margin-top: 16px; width: 100%; max-width: 320px;
+  width: 100%;
+  max-width: 340px;
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+  grid-template-areas:
+    "btn-local btn-ai"
+    "btn-create btn-join"
+    "btn-other btn-other";
 }
+.menu-buttons .btn {
+  width: 100%;
+  padding: 12px 14px;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.menu-buttons .btn-icon { font-size: 14px; }
+.menu-buttons .btn[for-layout="local"]   { grid-area: btn-local; }
+.menu-buttons .btn[for-layout="ai"]      { grid-area: btn-ai; }
+.menu-buttons .btn[for-layout="create"]  { grid-area: btn-create; }
+.menu-buttons .btn[for-layout="join"]    { grid-area: btn-join; }
+.menu-buttons .btn[for-layout="other"]   { grid-area: btn-other; }
 
 .footer {
   margin-top: 14px;
@@ -877,7 +902,7 @@ body::after {
   .ruleset-opt { padding: 7px 10px; }
   .ruleset-opt .t { font-size: 12px; }
   .ruleset-opt .d { font-size: 10px; }
-  .menu-buttons { margin-top: 10px; gap: 8px; max-width: 260px; }
+  .menu-buttons { margin-top: 10px; gap: 7px; max-width: 280px; }
   .btn { padding: 9px 14px; font-size: 13px; }
   .board { width: min(44vh, 360px); height: min(44vh, 360px); padding: 6px; border-radius: 14px; }
   .game-wrap { gap: 12px; }
@@ -886,7 +911,7 @@ body::after {
 
 /* ============ 桌面大屏 ============ */
 @media (min-width: 1024px) {
-  .menu-buttons { max-width: 340px; }
+  .menu-buttons { max-width: 400px; gap: 12px; }
   .board { width: 440px; height: 440px; }
   .big-gem { width: 110px; height: 110px; }
   .hero h1 { font-size: 40px; }
@@ -959,16 +984,19 @@ body::after {
     </div>
 
     <div class="menu-buttons">
-      <button class="btn primary" id="btn-local">
-        <span class="btn-icon">✦</span> 单机对战
+      <button class="btn" id="btn-local" for-layout="local">
+        <span class="btn-icon">♙</span> 本地对战
       </button>
-      <button class="btn" id="btn-online-create">
-        <span class="btn-icon">◈</span> 创建联机房间
+      <button class="btn primary" id="btn-ai" for-layout="ai">
+        <span class="btn-icon">✦</span> AI 对战
       </button>
-      <button class="btn" id="btn-online-join">
+      <button class="btn" id="btn-online-create" for-layout="create">
+        <span class="btn-icon">◈</span> 创建房间
+      </button>
+      <button class="btn" id="btn-online-join" for-layout="join">
         <span class="btn-icon">◇</span> 加入房间
       </button>
-      <a class="btn" href="../index.html" style="text-decoration:none;text-align:center">
+      <a class="btn" href="../index.html" for-layout="other" style="text-decoration:none;text-align:center">
         <span class="btn-icon">◇</span> 其他模式
       </a>
     </div>
@@ -1710,7 +1738,8 @@ const App = {
     });
 
     // 菜单按钮
-    safeGet('btn-local')?.addEventListener('click', () => this.showDifficultySelect());
+    safeGet('btn-local')?.addEventListener('click', () => this.startPvp());
+    safeGet('btn-ai')?.addEventListener('click', () => this.showDifficultySelect());
     safeGet('btn-online-create')?.addEventListener('click', () => this.createRoom());
     safeGet('btn-online-join')?.addEventListener('click', () => this.showJoinDialog());
 
@@ -1858,6 +1887,32 @@ const App = {
     const inp = safeGet('join-input');
     inp.value = '';
     setTimeout(() => inp.focus(), 50);
+  },
+
+  startPvp() {
+    this.mode = 'pvp';
+    this.difficulty = null;
+    this.playerSide = null;
+    this.setScrollLock(true);
+    this.local = new LocalGame();
+    this.state = this.local.snapshot();
+    this.clearAiTimer(true);
+    this.aiCandidates = [];
+    this.stopAiCandidateCycle();
+    this.clearRemovingVisual(false);
+    this._resetCellRenderKeys();
+    this.rematch = { status: 'none', byHost: false, guestResponse: null };
+    safeGet('menu')?.classList.remove('show');
+    safeGet('difficulty-select')?.classList.remove('show');
+    safeGet('side-select')?.classList.remove('show');
+    safeGet('game')?.classList.add('show');
+    safeGet('room-info')?.classList.remove('show');
+    this.hideDialogs();
+    this.hideRematchBar();
+    this.hideEndBanner();
+    this.setBoardDisabled(false);
+    this.updateRestartButton();
+    this.render();
   },
 
   startLocal(difficulty, side) {
@@ -2248,6 +2303,22 @@ const App = {
   handleCellClick(row, col) {
     if (!this.state || this.state.status !== 'playing') return;
 
+    if (this.mode === 'pvp') {
+      if (this.local.board[row][col] !== 0) return;
+      const cur = this.state.current;
+      const res = this.local.place(row, col, cur);
+      if (!res.ok) return;
+      this.state = this.local.snapshot();
+      if (res.removed) this.stageRemovingVisual(res.removed);
+      this.updateRestartButton();
+      if (this.state.status === 'playing' && this.ruleset === 'classic') {
+        setTimeout(() => this._runClassicTurnStartPruneAndThen(() => this.render()), 80);
+      } else {
+        this.render();
+      }
+      return;
+    }
+
     if (this.mode === 'local') {
       const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
       const aiPlayer    = (this.playerSide === 'white') ? BLACK : WHITE;
@@ -2387,6 +2458,26 @@ const App = {
 
   // 顶部重开 / 结束横幅「再来一局」共用
   handleRestart() {
+    if (this.mode === 'pvp') {
+      this.showConfirm({
+        title: '再开一局',
+        desc: '',
+        onYes: () => {
+          this.clearAiTimer(true);
+          this.stopAiCandidateCycle();
+          this.clearRemovingVisual(false);
+          this._resetCellRenderKeys();
+          this.local.reset();
+          this.state = this.local.snapshot();
+          this.hideEndBanner();
+          this.setBoardDisabled(false);
+          this.updateRestartButton();
+          this.render();
+        }
+      });
+      return;
+    }
+
     if (this.mode === 'local') {
       // 只要一个标题"再开一局"，去掉描述句子
       this.showConfirm({
@@ -2541,6 +2632,8 @@ const App = {
     const humanPlayer = (this.playerSide === 'white') ? WHITE : BLACK;
     if (this.state.status === 'ended') {
       this.setBoardDisabled(true);
+    } else if (this.mode === 'pvp') {
+      this.setBoardDisabled(false);
     } else if (this.mode === 'local') {
       this.setBoardDisabled(!!this.aiTimer || this.state.current !== humanPlayer);
     }
@@ -2596,6 +2689,9 @@ const App = {
         label = 'AI 思考中';
         dotHtml = '<span class="thinking-dot" aria-hidden="true"></span>';
       }
+    } else if (this.mode === 'pvp') {
+      miniGem = this._miniGemSVG(cur);
+      label = (cur === WHITE) ? '白方下' : '黑方下';
     } else if (this.mode === 'online') {
       miniGem = this._miniGemSVG(this.mySeat);
       label = cur === this.mySeat ? '你的回合' : '对方回合';
